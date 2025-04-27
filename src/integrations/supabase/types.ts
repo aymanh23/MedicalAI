@@ -9,7 +9,66 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      doctor_patient_chat: {
+        Row: {
+          created_at: string | null
+          doctor_id: string
+          id: string
+          message: string
+          patient_case_id: string
+          sender_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          doctor_id: string
+          id?: string
+          message: string
+          patient_case_id: string
+          sender_type: string
+        }
+        Update: {
+          created_at?: string | null
+          doctor_id?: string
+          id?: string
+          message?: string
+          patient_case_id?: string
+          sender_type?: string
+        }
+        Relationships: []
+      }
+      patient_history: {
+        Row: {
+          created_at: string | null
+          diagnosis: string | null
+          doctor_id: string
+          id: string
+          notes: string | null
+          patient_case_id: string
+          treatment: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          diagnosis?: string | null
+          doctor_id: string
+          id?: string
+          notes?: string | null
+          patient_case_id: string
+          treatment?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          diagnosis?: string | null
+          doctor_id?: string
+          id?: string
+          notes?: string | null
+          patient_case_id?: string
+          treatment?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

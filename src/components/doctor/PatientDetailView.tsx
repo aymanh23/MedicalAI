@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { PatientCase } from './PatientCaseCard';
 import { AlertCircle, ArrowLeft, Clock, CheckCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PatientHistory from './PatientHistory';
+import DoctorChat from './DoctorChat';
 
 interface PatientDetailViewProps {
   patientCase: PatientCase | null;
@@ -111,47 +113,65 @@ Would you like me to prepare a detailed report for your doctor?</p>
         </Card>
 
         <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="text-xl font-semibold mb-4">Doctor Review</h3>
+          <Tabs defaultValue="review" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="review">Review</TabsTrigger>
+              <TabsTrigger value="chat">Chat</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+            </TabsList>
             
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="severity">Update Urgency Assessment:</Label>
-                <Select value={severity} onValueChange={(value: 'low' | 'medium' | 'high') => setSeverity(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select urgency level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low Urgency</SelectItem>
-                    <SelectItem value="medium">Medium Urgency</SelectItem>
-                    <SelectItem value="high">High Urgency</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="recommendation">Doctor's Recommendation:</Label>
-                <Textarea 
-                  id="recommendation"
-                  placeholder="Enter your professional recommendation"
-                  value={doctorRecommendation}
-                  onChange={(e) => setDoctorRecommendation(e.target.value)}
-                  className="min-h-24"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="notes">Clinical Notes:</Label>
-                <Textarea 
-                  id="notes"
-                  placeholder="Enter any additional notes"
-                  value={doctorNotes}
-                  onChange={(e) => setDoctorNotes(e.target.value)}
-                  className="min-h-32"
-                />
-              </div>
-            </div>
-          </Card>
+            <TabsContent value="review">
+              <Card className="p-6">
+                <h3 className="text-xl font-semibold mb-4">Doctor Review</h3>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="severity">Update Urgency Assessment:</Label>
+                    <Select value={severity} onValueChange={(value: 'low' | 'medium' | 'high') => setSeverity(value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select urgency level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low Urgency</SelectItem>
+                        <SelectItem value="medium">Medium Urgency</SelectItem>
+                        <SelectItem value="high">High Urgency</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="recommendation">Doctor's Recommendation:</Label>
+                    <Textarea 
+                      id="recommendation"
+                      placeholder="Enter your professional recommendation"
+                      value={doctorRecommendation}
+                      onChange={(e) => setDoctorRecommendation(e.target.value)}
+                      className="min-h-24"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Clinical Notes:</Label>
+                    <Textarea 
+                      id="notes"
+                      placeholder="Enter any additional notes"
+                      value={doctorNotes}
+                      onChange={(e) => setDoctorNotes(e.target.value)}
+                      className="min-h-32"
+                    />
+                  </div>
+                </div>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="chat">
+              {patientCase && <DoctorChat patientCaseId={patientCase.id} />}
+            </TabsContent>
+            
+            <TabsContent value="history">
+              {patientCase && <PatientHistory patientCaseId={patientCase.id} />}
+            </TabsContent>
+          </Tabs>
           
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onBack}>Cancel</Button>
