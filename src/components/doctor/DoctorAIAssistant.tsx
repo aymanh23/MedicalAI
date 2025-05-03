@@ -16,6 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface DoctorAIAssistantProps {
   patientSymptoms: string[];
@@ -27,6 +32,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
   const [conversations, setConversations] = useState<{role: 'doctor' | 'ai'; content: string}[]>([]);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorDetails, setErrorDetails] = useState('');
+  const [apiModelInfo, setApiModelInfo] = useState('');
   const { toast } = useToast();
   const conversationEndRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +47,14 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
       });
       
       if (error) throw error;
-      if (data.error) throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+      if (data.error) {
+        const errorMsg = data.error + (data.details ? `: ${data.details}` : '');
+        // Store model info if provided
+        if (data.modelInfo) {
+          setApiModelInfo(data.modelInfo);
+        }
+        throw new Error(errorMsg);
+      }
       return data;
     },
     onMutate: (prompt) => {
@@ -62,7 +75,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
       setErrorDialogOpen(true);
       
       toast({
-        title: "Error",
+        title: "AI Assistant Error",
         description: "Failed to get a response from the AI assistant.",
         variant: "destructive",
       });
@@ -94,17 +107,42 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
     setErrorDialogOpen(false);
   };
 
+  const handleInfoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   return (
     <>
       <Card className="flex flex-col h-[400px]">
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-medium flex items-center">
-            <Bot className="mr-2 h-5 w-5 text-primary" />
-            Medical AI Assistant
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Ask medical questions about this patient case
-          </p>
+        <div className="p-4 border-b flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-medium flex items-center">
+              <Bot className="mr-2 h-5 w-5 text-primary" />
+              Medical AI Assistant
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Ask medical questions about this patient case
+            </p>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 px-2">
+                <AlertCircle className="h-4 w-4" />
+                <span className="sr-only">Information</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <div className="space-y-2">
+                <h4 className="font-medium">About this AI Assistant</h4>
+                <p className="text-sm text-muted-foreground">
+                  This assistant uses Gemini AI to provide medical insights.
+                  Responses are provided for informational purposes and should not
+                  replace professional medical judgment.
+                </p>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
         
         <div className="flex-grow overflow-y-auto p-4 space-y-4">
@@ -179,6 +217,12 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
           <div className="bg-muted p-3 rounded-md text-sm font-mono">
             {errorDetails}
           </div>
+          
+          {apiModelInfo && (
+            <div className="text-xs text-muted-foreground mt-1">
+              {apiModelInfo}
+            </div>
+          )}
           
           <p className="text-sm text-muted-foreground mt-2">
             This might be due to a temporary issue with the AI service or an API key configuration problem.

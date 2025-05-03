@@ -20,8 +20,8 @@ serve(async (req) => {
     }
     
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Use the current stable model name
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // Using generative-text model instead of gemini-pro which was causing issues
+    const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
     const { prompt, patientSymptoms, patientHistory } = await req.json();
 
@@ -45,18 +45,32 @@ Please provide a medically accurate response. If you're uncertain, indicate the 
 
     console.log("Sending prompt to Gemini API:", contextPrompt.substring(0, 100) + "...");
     
-    const result = await model.generateContent(contextPrompt);
-    const response = result.response;
-    const text = response.text();
+    try {
+      const result = await model.generateContent(contextPrompt);
+      const response = result.response;
+      const text = response.text();
 
-    console.log("Received response from Gemini API:", text.substring(0, 100) + "...");
+      console.log("Received response from Gemini API:", text.substring(0, 100) + "...");
 
-    return new Response(
-      JSON.stringify({ 
-        response: text 
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      return new Response(
+        JSON.stringify({ 
+          response: text 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (generationError) {
+      console.error("Gemini API error:", generationError);
+      
+      // Provide more details about the error
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to generate AI response',
+          details: `Gemini API error: ${generationError.message || "Unknown error"}`,
+          modelInfo: "Attempted to use model: gemini-1.0-pro"
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Error in AI assistant:', error);
     return new Response(
