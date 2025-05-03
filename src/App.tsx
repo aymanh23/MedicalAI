@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import DoctorDashboard from "./pages/DoctorDashboard";
+import DoctorAccount from "./pages/DoctorAccount";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DoctorDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/doctor-account"
+              element={
+                <ProtectedRoute>
+                  <DoctorAccount />
                 </ProtectedRoute>
               }
             />
