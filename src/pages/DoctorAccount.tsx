@@ -1,347 +1,352 @@
-
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import PageLayout from '@/components/layout/PageLayout';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 interface DoctorProfile {
-  id: string;
-  full_name?: string;
-  specialty?: string;
-  hospital?: string;
-  years_experience?: number;
-  biography?: string;
-  email?: string;
+  id?: string;
+  user_id: string;
+  full_name: string;
+  specialization: string;
+  bio: string;
+  contact_email: string;
+  phone_number: string;
+  notification_preferences: {
+    email: boolean;
+    sms: boolean;
+    app: boolean;
+  };
+  created_at?: string;
+  updated_at?: string;
 }
 
-const DoctorAccount = () => {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [profileData, setProfileData] = useState<DoctorProfile>({
-    id: user?.id || '',
-    full_name: '',
-    specialty: '',
-    hospital: '',
-    years_experience: 0,
-    biography: '',
-    email: user?.email || '',
-  });
+const defaultProfile: DoctorProfile = {
+  user_id: '',
+  full_name: '',
+  specialization: '',
+  bio: '',
+  contact_email: '',
+  phone_number: '',
+  notification_preferences: {
+    email: true,
+    sms: false,
+    app: true,
+  },
+};
 
-  // Fetch doctor profile data
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ['doctor-profile', user?.id],
+const DoctorAccount = () => {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<DoctorProfile>(defaultProfile);
+  const queryClient = useQueryClient();
+
+  // Fetch doctor profile
+  const { data: doctorProfile, isLoading } = useQuery({
+    queryKey: ['doctor-profile'],
     queryFn: async () => {
-      if (!user?.id) return null;
+      if (!user) throw new Error('No user logged in');
+      
+      // Create the doctor_profiles table if it doesn't exist using our migration
+      await fetch('/api/run-migration', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          migration: '20240503_create_doctor_profiles'
+        }),
+      });
       
       const { data, error } = await supabase
         .from('doctor_profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .single();
-      
-      if (error && error.code !== 'PGRST116') {
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is the "no rows returned" error
         throw error;
       }
-      
-      return data as DoctorProfile | null;
+
+      return data as DoctorProfile || null;
     },
-    enabled: !!user?.id,
+    retry: false,
   });
 
-  // Update profile mutation
-  const updateProfileMutation = useMutation({
+  // Update doctor profile
+  const updateProfile = useMutation({
     mutationFn: async (updatedProfile: DoctorProfile) => {
-      const { data, error } = await supabase
-        .from('doctor_profiles')
-        .upsert(updatedProfile, { onConflict: 'id' })
-        .select();
-        
-      if (error) throw error;
-      return data;
+      if (!user) throw new Error('No user logged in');
+
+      // If profile exists, update it
+      if (updatedProfile.id) {
+        const { data, error } = await supabase
+          .from('doctor_profiles')
+          .update(updatedProfile)
+          .eq('id', updatedProfile.id)
+          .select();
+
+        if (error) throw error;
+        return data[0];
+      } 
+      // Otherwise create a new profile
+      else {
+        const newProfile = {
+          ...updatedProfile,
+          user_id: user.id
+        };
+
+        const { data, error } = await supabase
+          .from('doctor_profiles')
+          .insert(newProfile)
+          .select();
+
+        if (error) throw error;
+        return data[0];
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(['doctor-profile'], data);
       toast({
         title: "Profile updated",
-        description: "Your profile has been updated successfully.",
+        description: "Your profile has been updated successfully",
       });
     },
     onError: (error) => {
       toast({
-        title: "Update failed",
-        description: `Failed to update profile: ${(error as Error).message}`,
+        title: "Error",
+        description: `Failed to update profile: ${error.message}`,
         variant: "destructive",
       });
     }
   });
 
   useEffect(() => {
-    if (profile) {
-      setProfileData({
-        ...profileData,
-        ...profile,
+    if (doctorProfile) {
+      setProfile(doctorProfile);
+    } else if (user && !isLoading) {
+      // Initialize with default values and current user info
+      setProfile({
+        ...defaultProfile,
+        user_id: user.id,
+        full_name: user.user_metadata?.full_name || '',
+        contact_email: user.email || '',
       });
     }
-  }, [profile]);
+  }, [doctorProfile, user, isLoading]);
+
+  const handleProfileUpdate = async () => {
+    updateProfile.mutate(profile);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setProfileData(prev => ({
+    setProfile((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleNotificationToggle = (key: 'email' | 'sms' | 'app') => {
+    setProfile((prev) => ({
       ...prev,
-      [name]: value
+      notification_preferences: {
+        ...prev.notification_preferences,
+        [key]: !prev.notification_preferences[key],
+      },
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateProfileMutation.mutate(profileData);
-  };
-
-  const getInitials = () => {
-    if (profileData.full_name) {
-      return profileData.full_name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase();
-    }
-    return user?.email?.substring(0, 2).toUpperCase() || 'DR';
-  };
+  if (isLoading) {
+    return (
+      <PageLayout>
+        <div className="flex justify-center items-center h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout>
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-medical-slate mb-6">Doctor Account</h1>
+      <div className="container py-8">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-3xl font-bold mb-8 text-medical-slate">Account Settings</h1>
 
-        <Tabs defaultValue="profile" className="max-w-3xl mx-auto">
-          <TabsList className="mb-6">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle>Doctor Profile</CardTitle>
-                <CardDescription>
-                  Update your profile information visible to patients and hospital staff.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                  </div>
-                ) : (
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="flex flex-col items-center sm:flex-row sm:items-start gap-6 mb-8">
-                      <Avatar className="h-24 w-24">
-                        <AvatarImage src="" alt={profileData.full_name} />
-                        <AvatarFallback className="text-2xl bg-medical-blue text-white">
-                          {getInitials()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-medium">{profileData.full_name || 'Doctor'}</h3>
-                        <p className="text-muted-foreground">{profileData.email}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {profileData.specialty} {profileData.hospital ? `at ${profileData.hospital}` : ''}
-                        </p>
-                        <Button variant="outline" size="sm" className="mt-3">
-                          Change Avatar
-                        </Button>
-                      </div>
-                    </div>
+          <Tabs defaultValue="profile" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="security">Security</TabsTrigger>
+              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            </TabsList>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label htmlFor="full_name" className="text-sm font-medium">Full Name</label>
-                        <Input
-                          id="full_name"
-                          name="full_name"
-                          value={profileData.full_name || ''}
-                          onChange={handleInputChange}
-                          placeholder="Dr. Jane Smith"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="email" className="text-sm font-medium">Email</label>
-                        <Input
-                          id="email"
-                          name="email"
-                          value={profileData.email || ''}
-                          onChange={handleInputChange}
-                          disabled
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="specialty" className="text-sm font-medium">Specialty</label>
-                        <Input
-                          id="specialty"
-                          name="specialty"
-                          value={profileData.specialty || ''}
-                          onChange={handleInputChange}
-                          placeholder="Cardiology"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="hospital" className="text-sm font-medium">Hospital/Clinic</label>
-                        <Input
-                          id="hospital"
-                          name="hospital"
-                          value={profileData.hospital || ''}
-                          onChange={handleInputChange}
-                          placeholder="City General Hospital"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label htmlFor="years_experience" className="text-sm font-medium">Years of Experience</label>
-                        <Input
-                          id="years_experience"
-                          name="years_experience"
-                          type="number"
-                          value={profileData.years_experience || ''}
-                          onChange={handleInputChange}
-                          placeholder="10"
-                        />
-                      </div>
-                    </div>
-
+            <TabsContent value="profile">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Profile Information</CardTitle>
+                  <CardDescription>
+                    Update your profile information visible to patients and colleagues
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label htmlFor="biography" className="text-sm font-medium">Professional Biography</label>
-                      <textarea 
-                        id="biography"
-                        name="biography"
-                        value={profileData.biography || ''}
+                      <Label htmlFor="full_name">Full Name</Label>
+                      <Input
+                        id="full_name"
+                        name="full_name"
+                        value={profile.full_name}
                         onChange={handleInputChange}
-                        placeholder="Share your professional background, specializations, and approach to medicine."
-                        className="w-full min-h-[120px] px-3 py-2 border border-input rounded-md"
                       />
                     </div>
-                  </form>
-                )}
-              </CardContent>
-              <CardFooter className="flex justify-end">
-                <Button 
-                  type="submit" 
-                  onClick={handleSubmit} 
-                  disabled={updateProfileMutation.isPending}
-                >
-                  {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="security">
-            <Card>
-              <CardHeader>
-                <CardTitle>Security Settings</CardTitle>
-                <CardDescription>
-                  Manage your account security and password
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="specialization">Specialization</Label>
+                      <Input
+                        id="specialization"
+                        name="specialization"
+                        placeholder="E.g., Cardiology, Family Medicine"
+                        value={profile.specialization}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <label htmlFor="current_password" className="text-sm font-medium">Current Password</label>
-                    <Input 
-                      id="current_password" 
-                      type="password" 
-                      placeholder="••••••••"
+                    <Label htmlFor="bio">Professional Bio</Label>
+                    <Textarea
+                      id="bio"
+                      name="bio"
+                      placeholder="Tell patients about your qualifications and experience"
+                      value={profile.bio}
+                      onChange={handleInputChange}
+                      className="min-h-32"
                     />
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="contact_email">Contact Email</Label>
+                      <Input
+                        id="contact_email"
+                        name="contact_email"
+                        value={profile.contact_email}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone_number">Phone Number</Label>
+                      <Input
+                        id="phone_number"
+                        name="phone_number"
+                        placeholder="+1 (123) 456-7890"
+                        value={profile.phone_number}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end space-x-2">
+                  <Button variant="outline">Cancel</Button>
+                  <Button 
+                    onClick={handleProfileUpdate}
+                    disabled={updateProfile.isPending}
+                  >
+                    {updateProfile.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="security">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Security Settings</CardTitle>
+                  <CardDescription>
+                    Manage your password and account security preferences
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <label htmlFor="new_password" className="text-sm font-medium">New Password</label>
-                    <Input 
-                      id="new_password" 
-                      type="password" 
-                      placeholder="••••••••"
+                    <Label htmlFor="current_password">Current Password</Label>
+                    <Input id="current_password" type="password" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new_password">New Password</Label>
+                      <Input id="new_password" type="password" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm_password">Confirm Password</Label>
+                      <Input id="confirm_password" type="password" />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end">
+                  <Button>Update Password</Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="notifications">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notification Preferences</CardTitle>
+                  <CardDescription>
+                    Manage how you receive notifications and alerts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Email Notifications</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Receive notifications via email
+                      </p>
+                    </div>
+                    <Switch 
+                      checked={profile.notification_preferences.email}
+                      onCheckedChange={() => handleNotificationToggle('email')}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label htmlFor="confirm_password" className="text-sm font-medium">Confirm New Password</label>
-                    <Input 
-                      id="confirm_password" 
-                      type="password" 
-                      placeholder="••••••••"
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">SMS Notifications</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Receive notifications via text message
+                      </p>
+                    </div>
+                    <Switch 
+                      checked={profile.notification_preferences.sms}
+                      onCheckedChange={() => handleNotificationToggle('sms')}
                     />
                   </div>
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-end">
-                <Button>Update Password</Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="notifications">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>
-                  Configure how you want to receive notifications
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-medium">New Patient Cases</h4>
-                      <p className="text-sm text-muted-foreground">Get notified when new patient cases are assigned to you</p>
+                      <h4 className="font-medium">App Notifications</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Receive push notifications in the app
+                      </p>
                     </div>
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm">Email</Button>
-                      <Button variant="outline" size="sm">SMS</Button>
-                      <Button variant="secondary" size="sm">In-App</Button>
-                    </div>
+                    <Switch 
+                      checked={profile.notification_preferences.app}
+                      onCheckedChange={() => handleNotificationToggle('app')}
+                    />
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-medium">Case Updates</h4>
-                      <p className="text-sm text-muted-foreground">Receive updates when your patient cases have new information</p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm">Email</Button>
-                      <Button variant="outline" size="sm">SMS</Button>
-                      <Button variant="secondary" size="sm">In-App</Button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-medium">System Notifications</h4>
-                      <p className="text-sm text-muted-foreground">Receive important system updates and announcements</p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button variant="secondary" size="sm">Email</Button>
-                      <Button variant="outline" size="sm">SMS</Button>
-                      <Button variant="secondary" size="sm">In-App</Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-end">
-                <Button>Save Preferences</Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                </CardContent>
+                <CardFooter className="flex justify-end">
+                  <Button onClick={handleProfileUpdate}>Save Preferences</Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </PageLayout>
   );

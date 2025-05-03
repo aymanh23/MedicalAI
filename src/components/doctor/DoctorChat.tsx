@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Send } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DoctorChatProps {
   patientCaseId: string;
@@ -24,6 +24,7 @@ const DoctorChat = ({ patientCaseId }: DoctorChatProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ['doctor-chat', patientCaseId],
@@ -43,11 +44,12 @@ const DoctorChat = ({ patientCaseId }: DoctorChatProps) => {
     mutationFn: async (messageText: string) => {
       const { data, error } = await supabase
         .from('doctor_patient_chat')
-        .insert([{
+        .insert({
           patient_case_id: patientCaseId,
+          doctor_id: user?.id || '',
           message: messageText,
           sender_type: 'doctor',
-        }])
+        })
         .select();
 
       if (error) throw error;

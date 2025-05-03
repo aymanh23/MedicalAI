@@ -7,11 +7,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PatientCase } from './PatientCaseCard';
-import { AlertCircle, ArrowLeft, Clock, CheckCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Clock, CheckCircle, Bot } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PatientHistory from './PatientHistory';
 import DoctorChat from './DoctorChat';
+import DoctorAIAssistant from './DoctorAIAssistant';
 
 interface PatientDetailViewProps {
   patientCase: PatientCase | null;
@@ -114,10 +115,13 @@ Would you like me to prepare a detailed report for your doctor?</p>
 
         <div className="space-y-6">
           <Tabs defaultValue="review" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="review">Review</TabsTrigger>
               <TabsTrigger value="chat">Chat</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="ask-ai" className="flex items-center">
+                <Bot className="mr-1 h-4 w-4" /> Ask AI
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="review">
@@ -170,6 +174,15 @@ Would you like me to prepare a detailed report for your doctor?</p>
             
             <TabsContent value="history">
               {patientCase && <PatientHistory patientCaseId={patientCase.id} />}
+            </TabsContent>
+
+            <TabsContent value="ask-ai">
+              {patientCase && (
+                <DoctorAIAssistant 
+                  patientSymptoms={patientCase.symptoms} 
+                  patientHistory={patientCase.aiRecommendation} 
+                />
+              )}
             </TabsContent>
           </Tabs>
           
