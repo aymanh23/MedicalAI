@@ -14,11 +14,20 @@ serve(async (req) => {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY") || "");
-    // Use gemini-pro model instead of gemini-1.0-pro which appears to be causing issues
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not set");
+    }
+    
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Use the current stable model name
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const { prompt, patientSymptoms, patientHistory } = await req.json();
+
+    if (!prompt) {
+      throw new Error("Prompt is required");
+    }
 
     // Create context for the AI based on patient information
     const contextPrompt = `
@@ -34,9 +43,13 @@ DOCTOR'S QUESTION: ${prompt}
 Please provide a medically accurate response. If you're uncertain, indicate the limitations of your knowledge.
 `;
 
+    console.log("Sending prompt to Gemini API:", contextPrompt.substring(0, 100) + "...");
+    
     const result = await model.generateContent(contextPrompt);
     const response = result.response;
     const text = response.text();
+
+    console.log("Received response from Gemini API:", text.substring(0, 100) + "...");
 
     return new Response(
       JSON.stringify({ 
