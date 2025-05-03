@@ -15,7 +15,8 @@ serve(async (req) => {
 
   try {
     const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY") || "");
-    const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+    // Use gemini-pro model instead of gemini-1.0-pro which appears to be causing issues
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const { prompt, patientSymptoms, patientHistory } = await req.json();
 
