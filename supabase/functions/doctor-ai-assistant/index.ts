@@ -20,8 +20,8 @@ serve(async (req) => {
     }
     
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Using generative-text model instead of gemini-pro which was causing issues
-    const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+    // Using Gemini Flash 1.5 model
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-1.5" });
 
     const { prompt, patientSymptoms, patientHistory } = await req.json();
 
@@ -61,12 +61,12 @@ Please provide a medically accurate response. If you're uncertain, indicate the 
     } catch (generationError) {
       console.error("Gemini API error:", generationError);
       
-      // Provide more details about the error
+      // Provide more details about the error and model information
       return new Response(
         JSON.stringify({ 
           error: 'Failed to generate AI response',
           details: `Gemini API error: ${generationError.message || "Unknown error"}`,
-          modelInfo: "Attempted to use model: gemini-1.0-pro"
+          modelInfo: "Attempted to use model: gemini-flash-1.5"
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
