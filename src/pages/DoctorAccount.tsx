@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import PageLayout from '@/components/layout/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { apiClient } from '@/services/apiClient';
 
 interface DoctorProfile {
   id?: string;
@@ -56,28 +56,16 @@ const DoctorAccount = () => {
     queryFn: async () => {
       if (!user) throw new Error('No user logged in');
       
-      // Create the doctor_profiles table if it doesn't exist using our migration
-      await fetch('/api/run-migration', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          migration: '20240503_create_doctor_profiles'
-        }),
-      });
-      
-      const { data, error } = await supabase
-        .from('doctor_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 is the "no rows returned" error
+      try {
+        const response = await apiClient.get(`/doctor-profile/${user.id}`);
+        return response.data as DoctorProfile;
+      } catch (error: any) {
+        // If profile doesn't exist yet, return null
+        if (error.response && error.response.status === 404) {
+          return null;
+        }
         throw error;
       }
-
-      return data as DoctorProfile || null;
     },
     retry: false,
   });
@@ -89,14 +77,8 @@ const DoctorAccount = () => {
 
       // If profile exists, update it
       if (updatedProfile.id) {
-        const { data, error } = await supabase
-          .from('doctor_profiles')
-          .update(updatedProfile)
-          .eq('id', updatedProfile.id)
-          .select();
-
-        if (error) throw error;
-        return data[0];
+        const response = await apiClient.put(`/doctor-profile/${updatedProfile.id}`, updatedProfile);
+        return response.data;
       } 
       // Otherwise create a new profile
       else {
@@ -105,13 +87,8 @@ const DoctorAccount = () => {
           user_id: user.id
         };
 
-        const { data, error } = await supabase
-          .from('doctor_profiles')
-          .insert(newProfile)
-          .select();
-
-        if (error) throw error;
-        return data[0];
+        const response = await apiClient.post('/doctor-profile', newProfile);
+        return response.data;
       }
     },
     onSuccess: (data) => {
@@ -138,7 +115,7 @@ const DoctorAccount = () => {
       setProfile({
         ...defaultProfile,
         user_id: user.id,
-        full_name: user.user_metadata?.full_name || '',
+        full_name: user.full_name || '',
         contact_email: user.email || '',
       });
     }
