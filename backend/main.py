@@ -1,23 +1,34 @@
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+import json
 import os
-from dotenv import load_dotenv
+from datetime import datetime, timedelta
+from typing import List
+import uuid
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Local imports
+from database import engine, get_db
+import models
+import schemas
+from auth import authenticate_user, create_access_token, get_current_active_user, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Load environment variables
 load_dotenv()
 
+# Create tables
+models.Base.metadata.create_all(bind=engine)
+
 # Set up FastAPI app
-app = FastAPI(title="Medical Assistant API", 
-              description="Backend API for Doctor-Patient Medical Application",
-              version="1.0.0")
+app = FastAPI(
+    title="Medical Assistant API",
+    description="Backend API for Doctor-Patient Medical Application",
+    version="1.0.0"
+)
 
 # Configure CORS
 app.add_middleware(
@@ -28,15 +39,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Authentication settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-development")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 # Configure Gemini AI
 try:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -45,211 +47,20 @@ try:
 except Exception as e:
     print(f"Error configuring Gemini AI: {e}")
 
-# --- DATABASE MODELS ---
-# In a production environment, use an ORM like SQLAlchemy
-# For simplicity, we'll use in-memory storage for this example
-
-# Sample data
-doctors = {
-    "dr_smith": {
-        "username": "dr_smith",
-        "email": "dr.smith@example.com",
-        "full_name": "Dr. John Smith",
-        "hashed_password": pwd_context.hash("password123"),
-        "disabled": False,
-        "role": "doctor"
-    }
-}
-
-patients = {}
-
-patient_cases = [
-    {
-        "id": "1",
-        "name": "John Doe",
-        "age": 45,
-        "gender": "Male",
-        "severity": "high",
-        "symptoms": ["Chest pain", "Shortness of breath", "Dizziness"],
-        "ai_recommendation": "Seek immediate medical attention. Symptoms suggest possible cardiac event.",
-        "timestamp": datetime.now().isoformat(),
-        "status": "pending",
-        "doctor_id": None
-    },
-    {
-        "id": "2",
-        "name": "Jane Smith",
-        "age": 35,
-        "gender": "Female",
-        "severity": "medium",
-        "symptoms": ["Headache", "Nausea", "Light sensitivity"],
-        "ai_recommendation": "Schedule an appointment within 24-48 hours. Symptoms suggest possible migraine.",
-        "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(),
-        "status": "pending",
-        "doctor_id": None
-    },
-    {
-        "id": "3",
-        "name": "Robert Johnson",
-        "age": 28,
-        "gender": "Male",
-        "severity": "low",
-        "symptoms": ["Sore throat", "Mild fever", "Cough"],
-        "ai_recommendation": "Rest and hydrate. Follow up if symptoms worsen or persist beyond 3-5 days.",
-        "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
-        "status": "pending",
-        "doctor_id": None
-    }
-]
-
-chats = []
-
-# --- PYDANTIC MODELS ---
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
-    role: Optional[str] = None
-
-class User(BaseModel):
-    username: str
-    email: Optional[str] = None
-    full_name: Optional[str] = None
-    disabled: Optional[bool] = None
-    role: str
-
-class UserInDB(User):
-    hashed_password: str
-
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    full_name: str
-    password: str
-    role: str
-
-class Symptom(BaseModel):
-    name: str
-
-class PatientCaseCreate(BaseModel):
-    name: str
-    age: int
-    gender: str
-    symptoms: List[str]
-    medical_history: Optional[str] = None
-
-class PatientCaseUpdate(BaseModel):
-    status: Optional[str] = None
-    severity: Optional[str] = None
-    doctor_notes: Optional[str] = None
-    doctor_recommendation: Optional[str] = None
-
-class PatientCase(BaseModel):
-    id: str
-    name: str
-    age: int
-    gender: str
-    severity: str
-    symptoms: List[str]
-    ai_recommendation: str
-    timestamp: str
-    status: str
-    doctor_id: Optional[str] = None
-    doctor_notes: Optional[str] = None
-    doctor_recommendation: Optional[str] = None
-    medical_history: Optional[str] = None
-
-class ChatMessage(BaseModel):
-    patient_case_id: str
-    sender_type: str  # "doctor" or "ai"
-    content: str
-
-class AIAssistantRequest(BaseModel):
-    prompt: str
-    patient_symptoms: List[str]
-    patient_history: Optional[str] = None
-
-# --- AUTHENTICATION FUNCTIONS ---
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def get_user(db, username: str):
-    if username in db:
-        user_dict = db[username]
-        return UserInDB(**user_dict)
-    return None
-
-def authenticate_user(db, username: str, password: str):
-    user = get_user(db, username)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
-    return user
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        role: str = payload.get("role")
-        if username is None:
-            raise credentials_exception
-        token_data = TokenData(username=username, role=role)
-    except JWTError:
-        raise credentials_exception
-    
-    # Check in both doctors and patients dictionaries
-    if token_data.role == "doctor":
-        user = get_user(doctors, username=token_data.username)
-    else:
-        user = get_user(patients, username=token_data.username)
-        
-    if user is None:
-        raise credentials_exception
-    return user
-
-async def get_current_active_user(current_user: User = Depends(get_current_user)):
-    if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
-
 # --- AUTH ENDPOINTS ---
 
-@app.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Try to authenticate in doctors first
-    user = authenticate_user(doctors, form_data.username, form_data.password)
+@app.post("/token", response_model=schemas.Token)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
-        # Then try patients
-        user = authenticate_user(patients, form_data.username, form_data.password)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -258,60 +69,89 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.post("/register", response_model=User)
-async def register_user(user: UserCreate):
-    if user.username in doctors or user.username in patients:
+@app.post("/register", response_model=schemas.User)
+async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # Check if username already exists
+    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
     
+    # Create new user
     hashed_password = get_password_hash(user.password)
-    user_data = user.dict()
-    user_data.pop("password")
-    user_data["hashed_password"] = hashed_password
-    user_data["disabled"] = False
-    
-    if user.role == "doctor":
-        doctors[user.username] = user_data
-    else:
-        patients[user.username] = user_data
-    
-    return user_data
+    db_user = models.User(
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        hashed_password=hashed_password,
+        role=user.role,
+        disabled=False
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 # --- PATIENT CASE ENDPOINTS ---
 
-@app.get("/patient-cases", response_model=List[PatientCase])
-async def get_patient_cases(current_user: User = Depends(get_current_active_user)):
-    if current_user.role != "doctor":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to view patient cases"
-        )
-    return patient_cases
-
-@app.get("/patient-cases/{case_id}", response_model=PatientCase)
-async def get_patient_case(case_id: str, current_user: User = Depends(get_current_active_user)):
+@app.get("/patient-cases", response_model=List[schemas.PatientCase])
+async def get_patient_cases(
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
     if current_user.role != "doctor":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view patient cases"
         )
     
-    for case in patient_cases:
-        if case["id"] == case_id:
-            return case
+    cases = db.query(models.PatientCase).all()
+    # Convert symptoms from stored JSON string to list
+    for case in cases:
+        case.symptoms = json.loads(case.symptoms)
     
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Patient case not found"
-    )
+    return cases
 
-@app.put("/patient-cases/{case_id}", response_model=PatientCase)
+@app.get("/patient-cases/{case_id}", response_model=schemas.PatientCase)
+async def get_patient_case(
+    case_id: str,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "doctor":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view patient cases"
+        )
+    
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+    
+    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient case not found"
+        )
+    
+    # Convert symptoms from stored JSON string to list
+    case.symptoms = json.loads(case.symptoms)
+    
+    return case
+
+@app.put("/patient-cases/{case_id}", response_model=schemas.PatientCase)
 async def update_patient_case(
-    case_id: str, 
-    case_update: PatientCaseUpdate,
-    current_user: User = Depends(get_current_active_user)
+    case_id: str,
+    case_update: schemas.PatientCaseUpdate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
     if current_user.role != "doctor":
         raise HTTPException(
@@ -319,49 +159,72 @@ async def update_patient_case(
             detail="Not authorized to update patient cases"
         )
     
-    for case in patient_cases:
-        if case["id"] == case_id:
-            update_data = case_update.dict(exclude_unset=True)
-            for key, value in update_data.items():
-                case[key] = value
-            case["doctor_id"] = current_user.username
-            return case
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
     
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Patient case not found"
-    )
+    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient case not found"
+        )
+    
+    # Update case fields
+    for key, value in case_update.dict(exclude_unset=True).items():
+        setattr(case, key, value)
+    
+    case.doctor_id = current_user.id
+    
+    db.commit()
+    db.refresh(case)
+    
+    # Convert symptoms from stored JSON string to list for response
+    case.symptoms = json.loads(case.symptoms)
+    
+    return case
 
-@app.post("/patient-cases", response_model=PatientCase)
-async def create_patient_case(case: PatientCaseCreate):
+@app.post("/patient-cases", response_model=schemas.PatientCase)
+async def create_patient_case(
+    case: schemas.PatientCaseCreate,
+    db: Session = Depends(get_db)
+):
     # This endpoint would typically require authentication but we're making it public
     # for demonstration purposes - in a real app this might be accessed via a patient portal
     
-    import uuid
+    # Create new patient case
+    new_case = models.PatientCase(
+        name=case.name,
+        age=case.age,
+        gender=case.gender,
+        severity="medium",  # Default severity, would be determined by AI in real app
+        symptoms=json.dumps(case.symptoms),  # Convert list to JSON string for storage
+        ai_recommendation="Please wait for doctor review.",  # Default recommendation
+        status="pending",
+        doctor_id=None,
+        medical_history=case.medical_history
+    )
     
-    new_case = {
-        "id": str(uuid.uuid4()),
-        "name": case.name,
-        "age": case.age,
-        "gender": case.gender,
-        "severity": "medium",  # Default severity, would be determined by AI in real app
-        "symptoms": case.symptoms,
-        "ai_recommendation": "Please wait for doctor review.",  # Default recommendation
-        "timestamp": datetime.now().isoformat(),
-        "status": "pending",
-        "doctor_id": None,
-        "medical_history": case.medical_history
-    }
+    db.add(new_case)
+    db.commit()
+    db.refresh(new_case)
     
-    patient_cases.append(new_case)
+    # Convert symptoms from stored JSON string to list for response
+    new_case.symptoms = case.symptoms
+    
     return new_case
 
 # --- CHAT ENDPOINTS ---
 
-@app.get("/chats/{patient_case_id}", response_model=List[ChatMessage])
+@app.get("/chats/{patient_case_id}", response_model=List[schemas.ChatMessageResponse])
 async def get_chat_messages(
     patient_case_id: str,
-    current_user: User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
     if current_user.role != "doctor":
         raise HTTPException(
@@ -369,12 +232,30 @@ async def get_chat_messages(
             detail="Not authorized to view chat messages"
         )
     
-    return [chat for chat in chats if chat["patient_case_id"] == patient_case_id]
+    try:
+        case_uuid = uuid.UUID(patient_case_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+    
+    # Check if patient case exists
+    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient case not found"
+        )
+    
+    chats = db.query(models.Chat).filter(models.Chat.patient_case_id == case_uuid).all()
+    return chats
 
-@app.post("/chats", response_model=ChatMessage)
+@app.post("/chats", response_model=schemas.ChatMessageResponse)
 async def create_chat_message(
-    message: ChatMessage,
-    current_user: User = Depends(get_current_active_user)
+    message: schemas.ChatMessage,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
     if current_user.role != "doctor":
         raise HTTPException(
@@ -382,24 +263,42 @@ async def create_chat_message(
             detail="Not authorized to create chat messages"
         )
     
+    try:
+        case_uuid = message.patient_case_id
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+    
     # Check if patient case exists
-    case_exists = any(case["id"] == message.patient_case_id for case in patient_cases)
-    if not case_exists:
+    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+    if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient case not found"
         )
     
-    new_message = message.dict()
-    chats.append(new_message)
+    # Create new chat message
+    new_message = models.Chat(
+        patient_case_id=message.patient_case_id,
+        sender_type=message.sender_type,
+        content=message.content,
+        doctor_id=current_user.id
+    )
+    
+    db.add(new_message)
+    db.commit()
+    db.refresh(new_message)
+    
     return new_message
 
 # --- AI ASSISTANT ENDPOINT ---
 
 @app.post("/ai-assistant")
 async def doctor_ai_assistant(
-    request: AIAssistantRequest,
-    current_user: User = Depends(get_current_active_user)
+    request: schemas.AIAssistantRequest,
+    current_user: models.User = Depends(get_current_active_user)
 ):
     if current_user.role != "doctor":
         raise HTTPException(
@@ -445,6 +344,64 @@ Please provide a medically accurate response. If you're uncertain, indicate the 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Add initial data for development
+@app.on_event("startup")
+async def startup_db_client():
+    db = next(get_db())
+    # Only add sample data if no users exist yet
+    user_count = db.query(models.User).count()
+    if user_count == 0:
+        # Create sample doctor
+        hashed_password = get_password_hash("password123")
+        doctor = models.User(
+            username="dr_smith",
+            email="dr.smith@example.com",
+            full_name="Dr. John Smith",
+            hashed_password=hashed_password,
+            disabled=False,
+            role="doctor"
+        )
+        db.add(doctor)
+        db.commit()
+        db.refresh(doctor)
+        
+        # Create sample patient cases
+        sample_cases = [
+            models.PatientCase(
+                name="John Doe",
+                age=45,
+                gender="Male",
+                severity="high",
+                symptoms=json.dumps(["Chest pain", "Shortness of breath", "Dizziness"]),
+                ai_recommendation="Seek immediate medical attention. Symptoms suggest possible cardiac event.",
+                status="pending",
+                doctor_id=None
+            ),
+            models.PatientCase(
+                name="Jane Smith",
+                age=35,
+                gender="Female",
+                severity="medium",
+                symptoms=json.dumps(["Headache", "Nausea", "Light sensitivity"]),
+                ai_recommendation="Schedule an appointment within 24-48 hours. Symptoms suggest possible migraine.",
+                status="pending",
+                doctor_id=None
+            ),
+            models.PatientCase(
+                name="Robert Johnson",
+                age=28,
+                gender="Male",
+                severity="low",
+                symptoms=json.dumps(["Sore throat", "Mild fever", "Cough"]),
+                ai_recommendation="Rest and hydrate. Follow up if symptoms worsen or persist beyond 3-5 days.",
+                status="pending",
+                doctor_id=None
+            )
+        ]
+        
+        db.bulk_save_objects(sample_cases)
+        db.commit()
 
 if __name__ == "__main__":
     import uvicorn
