@@ -20,6 +20,24 @@ class User(Base):
     # Relationships
     doctor_cases = relationship("PatientCase", back_populates="doctor", foreign_keys="PatientCase.doctor_id")
     doctor_chats = relationship("Chat", back_populates="doctor", foreign_keys="Chat.doctor_id")
+    doctor_profile = relationship("DoctorProfile", back_populates="user", uselist=False)
+
+class DoctorProfile(Base):
+    __tablename__ = "doctor_profiles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True)
+    full_name = Column(String)
+    specialization = Column(String)
+    bio = Column(Text)
+    contact_email = Column(String)
+    phone_number = Column(String)
+    notification_preferences = Column(Text)  # Stored as JSON string
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="doctor_profile")
 
 class PatientCase(Base):
     __tablename__ = "patient_cases"

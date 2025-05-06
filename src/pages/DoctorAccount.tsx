@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageLayout from '@/components/layout/PageLayout';
@@ -115,7 +116,8 @@ const DoctorAccount = () => {
       setProfile({
         ...defaultProfile,
         user_id: user.id,
-        full_name: user.full_name || '',
+        // Use optional chaining to safely access the property
+        full_name: user.username || '',
         contact_email: user.email || '',
       });
     }

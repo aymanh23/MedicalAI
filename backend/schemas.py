@@ -1,6 +1,6 @@
 
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 import uuid
 
@@ -27,6 +27,39 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
     role: Optional[str] = None
+
+class NotificationPreferences(BaseModel):
+    email: bool = True
+    sms: bool = False
+    app: bool = True
+
+class DoctorProfileBase(BaseModel):
+    full_name: str
+    specialization: str = ""
+    bio: str = ""
+    contact_email: str
+    phone_number: str = ""
+    notification_preferences: Optional[NotificationPreferences] = None
+
+class DoctorProfileCreate(DoctorProfileBase):
+    pass
+
+class DoctorProfileUpdate(DoctorProfileBase):
+    full_name: Optional[str] = None
+    specialization: Optional[str] = None
+    bio: Optional[str] = None
+    contact_email: Optional[str] = None
+    phone_number: Optional[str] = None
+    notification_preferences: Optional[NotificationPreferences] = None
+
+class DoctorProfile(DoctorProfileBase):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 class PatientCaseCreate(BaseModel):
     name: str

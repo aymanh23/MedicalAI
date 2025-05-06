@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -339,6 +338,126 @@ Please provide a medically accurate response. If you're uncertain, indicate the 
             "details": str(e),
             "modelInfo": "Attempted to use model: gemini-1.5-flash"
         }
+
+# --- DOCTOR PROFILE ENDPOINTS ---
+
+@app.get("/doctor-profile/{user_id}", response_model=schemas.DoctorProfile)
+async def get_doctor_profile(
+    user_id: str,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+    
+    profile = db.query(models.DoctorProfile).filter(models.DoctorProfile.user_id == user_uuid).first()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor profile not found"
+        )
+    
+    return profile
+
+@app.post("/doctor-profile", response_model=schemas.DoctorProfile)
+async def create_doctor_profile(
+    profile: schemas.DoctorProfileCreate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "doctor":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only doctors can create profiles"
+        )
+    
+    # Check if profile already exists
+    existing_profile = db.query(models.DoctorProfile).filter(models.DoctorProfile.user_id == current_user.id).first()
+    if existing_profile:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Profile already exists for this user"
+        )
+    
+    # Create new profile
+    notification_prefs = profile.notification_preferences.dict() if profile.notification_preferences else {
+        "email": True,
+        "sms": False,
+        "app": True
+    }
+    
+    new_profile = models.DoctorProfile(
+        user_id=current_user.id,
+        full_name=profile.full_name,
+        specialization=profile.specialization,
+        bio=profile.bio,
+        contact_email=profile.contact_email,
+        phone_number=profile.phone_number,
+        notification_preferences=json.dumps(notification_prefs)
+    )
+    
+    db.add(new_profile)
+    db.commit()
+    db.refresh(new_profile)
+    
+    # Convert notification_preferences from JSON string back to dict
+    new_profile.notification_preferences = json.loads(new_profile.notification_preferences)
+    
+    return new_profile
+
+@app.put("/doctor-profile/{profile_id}", response_model=schemas.DoctorProfile)
+async def update_doctor_profile(
+    profile_id: str,
+    profile_update: schemas.DoctorProfileUpdate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        profile_uuid = uuid.UUID(profile_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+    
+    profile = db.query(models.DoctorProfile).filter(models.DoctorProfile.id == profile_uuid).first()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor profile not found"
+        )
+    
+    # Ensure user can only update their own profile
+    if profile.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this profile"
+        )
+    
+    # Update profile fields
+    update_data = profile_update.dict(exclude_unset=True)
+    
+    # Handle notification preferences separately if included
+    if "notification_preferences" in update_data:
+        notification_prefs = update_data.pop("notification_preferences")
+        profile.notification_preferences = json.dumps(notification_prefs)
+    
+    # Update the other fields
+    for key, value in update_data.items():
+        setattr(profile, key, value)
+    
+    db.commit()
+    db.refresh(profile)
+    
+    # Convert notification_preferences from JSON string to dict for response
+    profile.notification_preferences = json.loads(profile.notification_preferences)
+    
+    return profile
 
 # Health check endpoint
 @app.get("/health")
