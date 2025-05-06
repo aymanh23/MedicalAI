@@ -1,6 +1,7 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '../../services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
@@ -14,9 +15,9 @@ interface DoctorChatProps {
 
 interface ChatMessage {
   id: string;
-  message: string;
+  content: string;
   sender_type: 'doctor' | 'ai';
-  created_at: string;
+  timestamp: string;
 }
 
 const DoctorChat = ({ patientCaseId }: DoctorChatProps) => {
@@ -29,31 +30,22 @@ const DoctorChat = ({ patientCaseId }: DoctorChatProps) => {
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ['doctor-chat', patientCaseId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('doctor_patient_chat')
-        .select('*')
-        .eq('patient_case_id', patientCaseId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return data as ChatMessage[];
+      try {
+        return await api.getChatMessages(patientCaseId);
+      } catch (error) {
+        console.error("Error fetching chat messages:", error);
+        return [];
+      }
     },
   });
 
   const sendMessage = useMutation({
     mutationFn: async (messageText: string) => {
-      const { data, error } = await supabase
-        .from('doctor_patient_chat')
-        .insert({
-          patient_case_id: patientCaseId,
-          doctor_id: user?.id || '',
-          message: messageText,
-          sender_type: 'doctor',
-        })
-        .select();
-
-      if (error) throw error;
-      return data;
+      return await api.createChatMessage({
+        patient_case_id: patientCaseId,
+        sender_type: 'doctor',
+        content: messageText,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctor-chat', patientCaseId] });
@@ -90,7 +82,7 @@ const DoctorChat = ({ patientCaseId }: DoctorChatProps) => {
         {isLoading ? (
           <div>Loading conversation...</div>
         ) : (
-          messages.map((msg) => (
+          messages.map((msg: ChatMessage) => (
             <div
               key={msg.id}
               className={`flex ${msg.sender_type === 'doctor' ? 'justify-end' : 'justify-start'}`}
@@ -102,7 +94,7 @@ const DoctorChat = ({ patientCaseId }: DoctorChatProps) => {
                     : 'bg-muted'
                 }`}
               >
-                {msg.message}
+                {msg.content}
               </div>
             </div>
           ))

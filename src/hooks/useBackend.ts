@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { getPatientCases, updatePatientCase, login } from '../../frontend/api';
 import { useToast } from '@/components/ui/use-toast';
+import { api } from '../services/apiClient';
 
 export function usePatientCases() {
   const [patientCases, setPatientCases] = useState([]);
@@ -13,7 +13,7 @@ export function usePatientCases() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getPatientCases();
+      const data = await api.getPatientCases();
       setPatientCases(data);
     } catch (err: any) {
       setError(err);
@@ -29,7 +29,7 @@ export function usePatientCases() {
 
   const handleUpdatePatientCase = async (id: string, caseData: any) => {
     try {
-      await updatePatientCase(id, caseData);
+      await api.updatePatientCase(id, caseData);
       toast({
         title: "Success",
         description: "Patient case updated successfully",
@@ -76,7 +76,7 @@ export function useAuth() {
   const handleLogin = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await login(username, password);
+      const response = await api.login(username, password);
       localStorage.setItem('token', response.access_token);
       setIsAuthenticated(true);
       return true;

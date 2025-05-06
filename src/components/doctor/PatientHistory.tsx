@@ -1,6 +1,6 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '../../services/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CalendarDays } from 'lucide-react';
 
@@ -13,21 +13,32 @@ interface HistoryRecord {
   notes: string;
   diagnosis: string;
   treatment: string;
-  created_at: string;
+  timestamp: string;
 }
 
 const PatientHistory = ({ patientCaseId }: PatientHistoryProps) => {
   const { data: history, isLoading } = useQuery({
     queryKey: ['patient-history', patientCaseId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('patient_history')
-        .select('*')
-        .eq('patient_case_id', patientCaseId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as HistoryRecord[];
+      try {
+        // We need to add this endpoint to our FastAPI backend
+        const response = await api.getPatientCase(patientCaseId);
+        
+        // For now, just return empty array or mock data
+        // In a real implementation, you would fetch history records
+        return response.medical_history 
+          ? [{ 
+              id: '1', 
+              notes: response.medical_history,
+              diagnosis: '',
+              treatment: '', 
+              timestamp: response.timestamp 
+            }] 
+          : [];
+      } catch (error) {
+        console.error("Error fetching patient history:", error);
+        return [];
+      }
     },
   });
 
@@ -42,8 +53,8 @@ const PatientHistory = ({ patientCaseId }: PatientHistoryProps) => {
             <CardHeader className="pb-2">
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <CalendarDays className="h-4 w-4" />
-                <time dateTime={record.created_at}>
-                  {new Date(record.created_at).toLocaleDateString()}
+                <time dateTime={record.timestamp}>
+                  {new Date(record.timestamp).toLocaleDateString()}
                 </time>
               </div>
             </CardHeader>
