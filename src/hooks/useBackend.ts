@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import api from '../../frontend/api';
+import { getPatientCases, updatePatientCase, login } from '../../frontend/api';
 import { useToast } from '@/components/ui/use-toast';
 
 export function usePatientCases() {
@@ -13,7 +13,7 @@ export function usePatientCases() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.getPatientCases();
+      const data = await getPatientCases();
       setPatientCases(data);
     } catch (err: any) {
       setError(err);
@@ -27,9 +27,9 @@ export function usePatientCases() {
     }
   };
 
-  const updatePatientCase = async (id: string, caseData: any) => {
+  const handleUpdatePatientCase = async (id: string, caseData: any) => {
     try {
-      await api.updatePatientCase(id, caseData);
+      await updatePatientCase(id, caseData);
       toast({
         title: "Success",
         description: "Patient case updated successfully",
@@ -53,7 +53,7 @@ export function usePatientCases() {
     isLoading,
     error,
     refetch: fetchPatientCases,
-    updatePatientCase
+    updatePatientCase: handleUpdatePatientCase
   };
 }
 
@@ -73,10 +73,10 @@ export function useAuth() {
     setIsLoading(false);
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const handleLogin = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await api.login(username, password);
+      const response = await login(username, password);
       localStorage.setItem('token', response.access_token);
       setIsAuthenticated(true);
       return true;
@@ -101,7 +101,7 @@ export function useAuth() {
     user,
     isAuthenticated,
     isLoading,
-    login,
+    login: handleLogin,
     logout
   };
 }
