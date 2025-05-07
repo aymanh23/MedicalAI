@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Send, Bot, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/services/apiClient';
 import { Avatar } from '@/components/ui/avatar';
 import {
   Dialog,
@@ -38,24 +38,24 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
 
   const askAI = useMutation({
     mutationFn: async (prompt: string) => {
-      const { data, error } = await supabase.functions.invoke('doctor-ai-assistant', {
-        body: {
+      try {
+        const data = await api.getAIResponse({
           prompt,
           patientSymptoms,
           patientHistory
+        });
+        
+        if (data.error) {
+          throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
         }
-      });
-      
-      if (error) throw error;
-      if (data.error) {
-        const errorMsg = data.error + (data.details ? `: ${data.details}` : '');
-        // Store model info if provided
-        if (data.modelInfo) {
-          setApiModelInfo(data.modelInfo);
+        
+        return data;
+      } catch (error: any) {
+        if (error.response?.data?.modelInfo) {
+          setApiModelInfo(error.response.data.modelInfo);
         }
-        throw new Error(errorMsg);
+        throw error;
       }
-      return data;
     },
     onMutate: (prompt) => {
       // Optimistically update UI
@@ -68,7 +68,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
         { role: 'ai', content: data.response }
       ]);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('AI assistant error:', error);
       // Show detailed error in dialog
       setErrorDetails(error.message || 'Unknown error occurred');
