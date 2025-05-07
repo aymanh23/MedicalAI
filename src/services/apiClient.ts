@@ -51,11 +51,6 @@ export const api = {
     return response.data;
   },
   
-  createPatientCase: async (caseData: any) => {
-    const response = await apiClient.post('/patient-cases', caseData);
-    return response.data;
-  },
-  
   updatePatientCase: async (caseId: string, caseData: any) => {
     const response = await apiClient.put(`/patient-cases/${caseId}`, caseData);
     return response.data;
@@ -75,6 +70,22 @@ export const api = {
   // AI Assistant
   getAIResponse: async (request: any) => {
     const response = await apiClient.post('/ai-assistant', request);
+    return response.data;
+  },
+  
+  // Doctor Profile
+  getDoctorProfile: async (userId: string) => {
+    const response = await apiClient.get(`/doctor-profile/${userId}`);
+    return response.data;
+  },
+  
+  createDoctorProfile: async (profileData: any) => {
+    const response = await apiClient.post('/doctor-profile', profileData);
+    return response.data;
+  },
+  
+  updateDoctorProfile: async (profileId: string, profileData: any) => {
+    const response = await apiClient.put(`/doctor-profile/${profileId}`, profileData);
     return response.data;
   }
 };

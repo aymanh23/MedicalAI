@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { api } from "../services/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -14,21 +14,27 @@ const Login = () => {
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const data = await api.login(username, password);
+      const success = await login(username, password);
       
-      if (data.access_token) {
-        localStorage.setItem('token', data.access_token);
+      if (success) {
         toast({
           title: "Login successful",
           description: "Welcome back, Doctor!",
         });
         navigate("/doctor-dashboard");
+      } else {
+        toast({
+          title: "Error",
+          description: "Invalid username or password",
+          variant: "destructive",
+        });
       }
     } catch (error: any) {
       toast({
