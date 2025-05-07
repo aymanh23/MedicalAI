@@ -65,17 +65,6 @@ export const updatePatientCase = async (
   return response.data;
 };
 
-export const createPatientCase = async (caseData: {
-  name: string;
-  age: number;
-  gender: string;
-  symptoms: string[];
-  medical_history?: string;
-}) => {
-  const response = await api.post('/patient-cases', caseData);
-  return response.data;
-};
-
 // Chat endpoints
 export const getChatMessages = async (patientCaseId: string) => {
   const response = await api.get(`/chats/${patientCaseId}`);
@@ -98,6 +87,22 @@ export const askAIAssistant = async (data: {
   patient_history?: string;
 }) => {
   const response = await api.post('/ai-assistant', data);
+  return response.data;
+};
+
+// Doctor profile endpoints
+export const getDoctorProfile = async (userId: string) => {
+  const response = await api.get(`/doctor-profile/${userId}`);
+  return response.data;
+};
+
+export const createDoctorProfile = async (profileData: any) => {
+  const response = await api.post('/doctor-profile', profileData);
+  return response.data;
+};
+
+export const updateDoctorProfile = async (profileId: string, profileData: any) => {
+  const response = await api.put(`/doctor-profile/${profileId}`, profileData);
   return response.data;
 };
 

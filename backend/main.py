@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import List
 import uuid
 import google.generativeai as genai
@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from database import engine, get_db
 import models
 import schemas
-from auth import authenticate_user, create_access_token, get_current_active_user, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
+from auth import authenticate_user, create_access_token, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Load environment variables
 load_dotenv()
@@ -94,6 +94,16 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     return db_user
 
 # --- PATIENT CASE ENDPOINTS ---
+
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+import uuid
+import json
+
+from database import get_db
+import models
+import schemas
 
 @app.get("/patient-cases", response_model=List[schemas.PatientCase])
 async def get_patient_cases(
@@ -187,37 +197,16 @@ async def update_patient_case(
     
     return case
 
-@app.post("/patient-cases", response_model=schemas.PatientCase)
-async def create_patient_case(
-    case: schemas.PatientCaseCreate,
-    db: Session = Depends(get_db)
-):
-    # This endpoint would typically require authentication but we're making it public
-    # for demonstration purposes - in a real app this might be accessed via a patient portal
-    
-    # Create new patient case
-    new_case = models.PatientCase(
-        name=case.name,
-        age=case.age,
-        gender=case.gender,
-        severity="medium",  # Default severity, would be determined by AI in real app
-        symptoms=json.dumps(case.symptoms),  # Convert list to JSON string for storage
-        ai_recommendation="Please wait for doctor review.",  # Default recommendation
-        status="pending",
-        doctor_id=None,
-        medical_history=case.medical_history
-    )
-    
-    db.add(new_case)
-    db.commit()
-    db.refresh(new_case)
-    
-    # Convert symptoms from stored JSON string to list for response
-    new_case.symptoms = case.symptoms
-    
-    return new_case
-
 # --- CHAT ENDPOINTS ---
+
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+import uuid
+
+from database import get_db
+import models
+import schemas
 
 @app.get("/chats/{patient_case_id}", response_model=List[schemas.ChatMessageResponse])
 async def get_chat_messages(
@@ -294,6 +283,14 @@ async def create_chat_message(
 
 # --- AI ASSISTANT ENDPOINT ---
 
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from database import get_db
+import models
+import schemas
+import google.generativeai as genai
+import os
+
 @app.post("/ai-assistant")
 async def doctor_ai_assistant(
     request: schemas.AIAssistantRequest,
@@ -340,6 +337,15 @@ Please provide a medically accurate response. If you're uncertain, indicate the 
         }
 
 # --- DOCTOR PROFILE ENDPOINTS ---
+
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session
+import uuid
+import json
+
+from database import get_db
+import models
+import schemas
 
 @app.get("/doctor-profile/{user_id}", response_model=schemas.DoctorProfile)
 async def get_doctor_profile(

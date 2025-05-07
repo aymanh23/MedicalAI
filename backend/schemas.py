@@ -61,19 +61,6 @@ class DoctorProfile(DoctorProfileBase):
     class Config:
         from_attributes = True
 
-class PatientCaseCreate(BaseModel):
-    name: str
-    age: int
-    gender: str
-    symptoms: List[str]
-    medical_history: Optional[str] = None
-
-class PatientCaseUpdate(BaseModel):
-    status: Optional[str] = None
-    severity: Optional[str] = None
-    doctor_notes: Optional[str] = None
-    doctor_recommendation: Optional[str] = None
-
 class PatientCase(BaseModel):
     id: uuid.UUID
     name: str
@@ -91,6 +78,12 @@ class PatientCase(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PatientCaseUpdate(BaseModel):
+    status: Optional[str] = None
+    severity: Optional[str] = None
+    doctor_notes: Optional[str] = None
+    doctor_recommendation: Optional[str] = None
 
 class ChatMessage(BaseModel):
     patient_case_id: uuid.UUID

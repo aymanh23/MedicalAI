@@ -7,7 +7,6 @@ import { Toaster } from "@/components/ui/toaster";
 // Pages
 import Login from './pages/Login';
 import DoctorDashboard from './pages/DoctorDashboard';
-import Index from './pages/Index';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -20,7 +19,11 @@ function App() {
       <AuthProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <DoctorDashboard />
+              </ProtectedRoute>
+            } />
             <Route path="/login" element={<Login />} />
             <Route 
               path="/doctor-dashboard" 
