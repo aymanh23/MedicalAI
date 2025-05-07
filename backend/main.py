@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import json
 import os
@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from database import engine, get_db
 import models
 import schemas
-from auth import authenticate_user, create_access_token, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
+from auth import authenticate_user, create_access_token, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_active_user
 
 # Load environment variables
 load_dotenv()
@@ -92,6 +92,11 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.commit()
     db.refresh(db_user)
     return db_user
+
+@app.get("/me", response_model=schemas.User)
+async def get_current_user(current_user: models.User = Depends(get_current_active_user)):
+    """Get the current authenticated user."""
+    return current_user
 
 # --- PATIENT CASE ENDPOINTS ---
 

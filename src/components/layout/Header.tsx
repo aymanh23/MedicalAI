@@ -14,11 +14,11 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 
 const Header: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await signOut();
+    logout();
     navigate('/login');
   };
 

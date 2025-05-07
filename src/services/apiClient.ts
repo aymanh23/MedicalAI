@@ -40,6 +40,11 @@ export const api = {
     return response.data;
   },
   
+  getCurrentUser: async () => {
+    const response = await apiClient.get('/me');
+    return response.data;
+  },
+  
   // Patient Cases
   getPatientCases: async () => {
     const response = await apiClient.get('/patient-cases');
