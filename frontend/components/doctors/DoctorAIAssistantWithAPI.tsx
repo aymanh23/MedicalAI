@@ -44,11 +44,11 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
           patientSymptoms,
           patientHistory
         });
-        
+
         if (data.error) {
           throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
         }
-        
+
         return data;
       } catch (error: any) {
         if (error.response?.data?.modelInfo) {
@@ -64,7 +64,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
     },
     onSuccess: (data) => {
       setConversations(prev => [
-        ...prev, 
+        ...prev,
         { role: 'ai', content: data.response }
       ]);
     },
@@ -73,7 +73,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
       // Show detailed error in dialog
       setErrorDetails(error.message || 'Unknown error occurred');
       setErrorDialogOpen(true);
-      
+
       toast({
         title: "AI Assistant Error",
         description: "Failed to get a response from the AI assistant.",
@@ -90,7 +90,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!question.trim()) return;
-    
+
     askAI.mutate(question);
   };
 
@@ -99,7 +99,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
       const lastDoctorQuestion = conversations
         .filter(msg => msg.role === 'doctor')
         .pop();
-      
+
       if (lastDoctorQuestion) {
         askAI.mutate(lastDoctorQuestion.content);
       }
@@ -139,7 +139,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
             </PopoverContent>
           </Popover>
         </div>
-        
+
         <div className="flex-grow overflow-y-auto p-4 space-y-4">
           {conversations.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
@@ -177,7 +177,7 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
           )}
           <div ref={conversationEndRef} />
         </div>
-        
+
         <form onSubmit={handleSubmit} className="border-t p-4">
           <div className="flex gap-2">
             <Textarea
@@ -208,27 +208,27 @@ const DoctorAIAssistant = ({ patientSymptoms, patientHistory }: DoctorAIAssistan
               There was a problem getting a response from the AI assistant.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="bg-muted p-3 rounded-md text-sm font-mono">
             {errorDetails}
           </div>
-          
+
           {apiModelInfo && (
             <div className="text-xs text-muted-foreground mt-1">
               {apiModelInfo}
             </div>
           )}
-          
+
           <p className="text-sm text-muted-foreground mt-2">
             This might be due to a temporary issue with the AI service or an API key configuration problem.
           </p>
-          
+
           <DialogFooter className="flex gap-2 mt-4">
             <Button variant="outline" onClick={() => setErrorDialogOpen(false)}>
               Close
             </Button>
-            <Button 
-              onClick={handleRetry} 
+            <Button
+              onClick={handleRetry}
               className="flex items-center gap-2"
             >
               <RefreshCw className="h-4 w-4" /> Try Again

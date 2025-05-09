@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
@@ -9,6 +8,7 @@ import Login from './pages/Login';
 import DoctorDashboard from './pages/DoctorDashboard';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import DoctorAccount from './pages/DoctorAccount';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -30,6 +30,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <DoctorDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/doctor-account" 
+              element={
+                <ProtectedRoute>
+                  <DoctorAccount />
                 </ProtectedRoute>
               } 
             />

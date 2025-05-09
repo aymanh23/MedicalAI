@@ -1,17 +1,16 @@
-
-import axios from 'axios';
+import axios from "axios";
 
 // Create axios instance with base URL
 const api = axios.create({
-  baseURL: 'http://localhost:8000', // Change to your backend URL in production
+  baseURL: "http://localhost:8000", // Change to your backend URL in production
 });
 
 // Request interceptor to add authentication token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers["Authorization"] = `Bearer ${token}`;
     }
     return config;
   },
@@ -21,14 +20,7 @@ api.interceptors.request.use(
 );
 
 // Authentication endpoints
-export const login = async (username: string, password: string) => {
-  const formData = new FormData();
-  formData.append('username', username);
-  formData.append('password', password);
-  
-  const response = await api.post('/token', formData);
-  return response.data;
-};
+// (Remove the duplicate/broken login function here)
 
 export const register = async (userData: {
   username: string;
@@ -37,13 +29,13 @@ export const register = async (userData: {
   password: string;
   role: string;
 }) => {
-  const response = await api.post('/register', userData);
+  const response = await api.post("/register", userData);
   return response.data;
 };
 
 // Patient cases endpoints
 export const getPatientCases = async () => {
-  const response = await api.get('/patient-cases');
+  const response = await api.get("/patient-cases");
   return response.data;
 };
 
@@ -65,6 +57,17 @@ export const updatePatientCase = async (
   return response.data;
 };
 
+export const createPatientCase = async (caseData: {
+  name: string;
+  age: number;
+  gender: string;
+  symptoms: string[];
+  medical_history?: string;
+}) => {
+  const response = await api.post("/patient-cases", caseData);
+  return response.data;
+};
+
 // Chat endpoints
 export const getChatMessages = async (patientCaseId: string) => {
   const response = await api.get(`/chats/${patientCaseId}`);
@@ -76,7 +79,7 @@ export const createChatMessage = async (messageData: {
   sender_type: string;
   content: string;
 }) => {
-  const response = await api.post('/chats', messageData);
+  const response = await api.post("/chats", messageData);
   return response.data;
 };
 
@@ -86,24 +89,28 @@ export const askAIAssistant = async (data: {
   patient_symptoms: string[];
   patient_history?: string;
 }) => {
-  const response = await api.post('/ai-assistant', data);
+  const response = await api.post("/ai-assistant", data);
   return response.data;
 };
 
-// Doctor profile endpoints
-export const getDoctorProfile = async (userId: string) => {
-  const response = await api.get(`/doctor-profile/${userId}`);
-  return response.data;
-};
+export const login = async (username: string, password: string) => {
+  const body = `grant_type=&username=${encodeURIComponent(
+    username.trim()
+  )}&password=${encodeURIComponent(password)}&scope=&client_id=&client_secret=`;
 
-export const createDoctorProfile = async (profileData: any) => {
-  const response = await api.post('/doctor-profile', profileData);
-  return response.data;
-};
+  const response = await fetch("http://localhost:8000/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      accept: "application/json",
+    },
+    body,
+  });
 
-export const updateDoctorProfile = async (profileId: string, profileData: any) => {
-  const response = await api.put(`/doctor-profile/${profileId}`, profileData);
-  return response.data;
+  if (!response.ok) {
+    throw new Error("Login failed");
+  }
+  return response.json();
 };
 
 export default api;

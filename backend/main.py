@@ -1,3 +1,5 @@
+from database import get_db
+from fastapi import Depends, HTTPException, status
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -48,6 +50,7 @@ except Exception as e:
 
 # --- AUTH ENDPOINTS ---
 
+
 @app.post("/token", response_model=schemas.Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -60,7 +63,7 @@ async def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username, "role": user.role},
@@ -68,16 +71,18 @@ async def login_for_access_token(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+
 @app.post("/register", response_model=schemas.User)
 async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # Check if username already exists
-    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    db_user = db.query(models.User).filter(
+        models.User.username == user.username).first()
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
-    
+
     # Create new user
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
@@ -93,6 +98,7 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.refresh(db_user)
     return db_user
 
+
 @app.get("/me", response_model=schemas.User)
 async def get_current_user(current_user: models.User = Depends(get_current_active_user)):
     """Get the current authenticated user."""
@@ -100,15 +106,6 @@ async def get_current_user(current_user: models.User = Depends(get_current_activ
 
 # --- PATIENT CASE ENDPOINTS ---
 
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
-import uuid
-import json
-
-from database import get_db
-import models
-import schemas
 
 @app.get("/patient-cases", response_model=List[schemas.PatientCase])
 async def get_patient_cases(
@@ -120,13 +117,14 @@ async def get_patient_cases(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view patient cases"
         )
-    
+
     cases = db.query(models.PatientCase).all()
     # Convert symptoms from stored JSON string to list
     for case in cases:
         case.symptoms = json.loads(case.symptoms)
-    
+
     return cases
+
 
 @app.get("/patient-cases/{case_id}", response_model=schemas.PatientCase)
 async def get_patient_case(
@@ -139,7 +137,7 @@ async def get_patient_case(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view patient cases"
         )
-    
+
     try:
         case_uuid = uuid.UUID(case_id)
     except ValueError:
@@ -147,18 +145,20 @@ async def get_patient_case(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid UUID format"
         )
-    
-    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+
+    case = db.query(models.PatientCase).filter(
+        models.PatientCase.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient case not found"
         )
-    
+
     # Convert symptoms from stored JSON string to list
     case.symptoms = json.loads(case.symptoms)
-    
+
     return case
+
 
 @app.put("/patient-cases/{case_id}", response_model=schemas.PatientCase)
 async def update_patient_case(
@@ -172,7 +172,7 @@ async def update_patient_case(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update patient cases"
         )
-    
+
     try:
         case_uuid = uuid.UUID(case_id)
     except ValueError:
@@ -180,38 +180,31 @@ async def update_patient_case(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid UUID format"
         )
-    
-    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+
+    case = db.query(models.PatientCase).filter(
+        models.PatientCase.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient case not found"
         )
-    
+
     # Update case fields
     for key, value in case_update.dict(exclude_unset=True).items():
         setattr(case, key, value)
-    
+
     case.doctor_id = current_user.id
-    
+
     db.commit()
     db.refresh(case)
-    
+
     # Convert symptoms from stored JSON string to list for response
     case.symptoms = json.loads(case.symptoms)
-    
+
     return case
 
 # --- CHAT ENDPOINTS ---
 
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
-import uuid
-
-from database import get_db
-import models
-import schemas
 
 @app.get("/chats/{patient_case_id}", response_model=List[schemas.ChatMessageResponse])
 async def get_chat_messages(
@@ -224,7 +217,7 @@ async def get_chat_messages(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view chat messages"
         )
-    
+
     try:
         case_uuid = uuid.UUID(patient_case_id)
     except ValueError:
@@ -232,17 +225,20 @@ async def get_chat_messages(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid UUID format"
         )
-    
+
     # Check if patient case exists
-    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+    case = db.query(models.PatientCase).filter(
+        models.PatientCase.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient case not found"
         )
-    
-    chats = db.query(models.Chat).filter(models.Chat.patient_case_id == case_uuid).all()
+
+    chats = db.query(models.Chat).filter(
+        models.Chat.patient_case_id == case_uuid).all()
     return chats
+
 
 @app.post("/chats", response_model=schemas.ChatMessageResponse)
 async def create_chat_message(
@@ -255,7 +251,7 @@ async def create_chat_message(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to create chat messages"
         )
-    
+
     try:
         case_uuid = message.patient_case_id
     except ValueError:
@@ -263,15 +259,16 @@ async def create_chat_message(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid UUID format"
         )
-    
+
     # Check if patient case exists
-    case = db.query(models.PatientCase).filter(models.PatientCase.id == case_uuid).first()
+    case = db.query(models.PatientCase).filter(
+        models.PatientCase.id == case_uuid).first()
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient case not found"
         )
-    
+
     # Create new chat message
     new_message = models.Chat(
         patient_case_id=message.patient_case_id,
@@ -279,22 +276,15 @@ async def create_chat_message(
         content=message.content,
         doctor_id=current_user.id
     )
-    
+
     db.add(new_message)
     db.commit()
     db.refresh(new_message)
-    
+
     return new_message
 
 # --- AI ASSISTANT ENDPOINT ---
 
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from database import get_db
-import models
-import schemas
-import google.generativeai as genai
-import os
 
 @app.post("/ai-assistant")
 async def doctor_ai_assistant(
@@ -306,16 +296,16 @@ async def doctor_ai_assistant(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to use AI assistant"
         )
-    
+
     try:
         if not GEMINI_API_KEY:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Gemini API key not configured"
             )
-        
+
         model = genai.GenerativeModel(model_name="gemini-1.5-flash")
-        
+
         # Create context for the AI based on patient information
         context_prompt = f"""
 You are a medical AI assistant helping a doctor review a patient case. Please provide concise, 
@@ -329,11 +319,11 @@ DOCTOR'S QUESTION: {request.prompt}
 
 Please provide a medically accurate response. If you're uncertain, indicate the limitations of your knowledge.
 """
-        
+
         response = model.generate_content(context_prompt)
-        
+
         return {"response": response.text}
-    
+
     except Exception as e:
         return {
             "error": "Failed to generate AI response",
@@ -343,14 +333,6 @@ Please provide a medically accurate response. If you're uncertain, indicate the 
 
 # --- DOCTOR PROFILE ENDPOINTS ---
 
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
-import uuid
-import json
-
-from database import get_db
-import models
-import schemas
 
 @app.get("/doctor-profile/{user_id}", response_model=schemas.DoctorProfile)
 async def get_doctor_profile(
@@ -365,15 +347,17 @@ async def get_doctor_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid UUID format"
         )
-    
-    profile = db.query(models.DoctorProfile).filter(models.DoctorProfile.user_id == user_uuid).first()
+
+    profile = db.query(models.DoctorProfile).filter(
+        models.DoctorProfile.user_id == user_uuid).first()
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doctor profile not found"
         )
-    
+
     return profile
+
 
 @app.post("/doctor-profile", response_model=schemas.DoctorProfile)
 async def create_doctor_profile(
@@ -386,22 +370,23 @@ async def create_doctor_profile(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only doctors can create profiles"
         )
-    
+
     # Check if profile already exists
-    existing_profile = db.query(models.DoctorProfile).filter(models.DoctorProfile.user_id == current_user.id).first()
+    existing_profile = db.query(models.DoctorProfile).filter(
+        models.DoctorProfile.user_id == current_user.id).first()
     if existing_profile:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Profile already exists for this user"
         )
-    
+
     # Create new profile
     notification_prefs = profile.notification_preferences.dict() if profile.notification_preferences else {
         "email": True,
         "sms": False,
         "app": True
     }
-    
+
     new_profile = models.DoctorProfile(
         user_id=current_user.id,
         full_name=profile.full_name,
@@ -411,15 +396,17 @@ async def create_doctor_profile(
         phone_number=profile.phone_number,
         notification_preferences=json.dumps(notification_prefs)
     )
-    
+
     db.add(new_profile)
     db.commit()
     db.refresh(new_profile)
-    
+
     # Convert notification_preferences from JSON string back to dict
-    new_profile.notification_preferences = json.loads(new_profile.notification_preferences)
-    
+    new_profile.notification_preferences = json.loads(
+        new_profile.notification_preferences)
+
     return new_profile
+
 
 @app.put("/doctor-profile/{profile_id}", response_model=schemas.DoctorProfile)
 async def update_doctor_profile(
@@ -435,47 +422,53 @@ async def update_doctor_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid UUID format"
         )
-    
-    profile = db.query(models.DoctorProfile).filter(models.DoctorProfile.id == profile_uuid).first()
+
+    profile = db.query(models.DoctorProfile).filter(
+        models.DoctorProfile.id == profile_uuid).first()
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doctor profile not found"
         )
-    
+
     # Ensure user can only update their own profile
     if profile.user_id != current_user.id and current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this profile"
         )
-    
+
     # Update profile fields
     update_data = profile_update.dict(exclude_unset=True)
-    
+
     # Handle notification preferences separately if included
     if "notification_preferences" in update_data:
         notification_prefs = update_data.pop("notification_preferences")
         profile.notification_preferences = json.dumps(notification_prefs)
-    
+
     # Update the other fields
     for key, value in update_data.items():
         setattr(profile, key, value)
-    
+
     db.commit()
     db.refresh(profile)
-    
+
     # Convert notification_preferences from JSON string to dict for response
-    profile.notification_preferences = json.loads(profile.notification_preferences)
-    
+    profile.notification_preferences = json.loads(
+        profile.notification_preferences)
+
     return profile
 
 # Health check endpoint
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
 # Add initial data for development
+
+
 @app.on_event("startup")
 async def startup_db_client():
     db = next(get_db())
@@ -495,7 +488,7 @@ async def startup_db_client():
         db.add(doctor)
         db.commit()
         db.refresh(doctor)
-        
+
         # Create sample patient cases
         sample_cases = [
             models.PatientCase(
@@ -503,7 +496,8 @@ async def startup_db_client():
                 age=45,
                 gender="Male",
                 severity="high",
-                symptoms=json.dumps(["Chest pain", "Shortness of breath", "Dizziness"]),
+                symptoms=json.dumps(
+                    ["Chest pain", "Shortness of breath", "Dizziness"]),
                 ai_recommendation="Seek immediate medical attention. Symptoms suggest possible cardiac event.",
                 status="pending",
                 doctor_id=None
@@ -513,7 +507,8 @@ async def startup_db_client():
                 age=35,
                 gender="Female",
                 severity="medium",
-                symptoms=json.dumps(["Headache", "Nausea", "Light sensitivity"]),
+                symptoms=json.dumps(
+                    ["Headache", "Nausea", "Light sensitivity"]),
                 ai_recommendation="Schedule an appointment within 24-48 hours. Symptoms suggest possible migraine.",
                 status="pending",
                 doctor_id=None
@@ -529,7 +524,7 @@ async def startup_db_client():
                 doctor_id=None
             )
         ]
-        
+
         db.bulk_save_objects(sample_cases)
         db.commit()
 

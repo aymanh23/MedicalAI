@@ -1,9 +1,9 @@
-
 version: '3.8'
 
 services:
   postgres:
     image: postgres:13
+    container_name: postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -13,7 +13,22 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # ─────────── pgAdmin 4 ────────────
+  pgadmin:
+
+    image: elestio/pgadmin
+    container_name: pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@test.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5055:80"
+
+
   backend:
+    container_name: backend-service
     build: ./backend
     ports:
       - "8000:8000"
@@ -28,15 +43,16 @@ services:
       - postgres
 
   frontend:
-    # This would be your frontend service
-    # For development, you might run this separately
-    image: node:16
-    volumes:
-      - ./frontend:/app
-    working_dir: /app
+    container_name: frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    command: sh -c "echo 'Frontend service placeholder - in development you would run this separately'"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
 
 volumes:
   postgres_data:

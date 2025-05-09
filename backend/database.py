@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/medical_app")
+
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)

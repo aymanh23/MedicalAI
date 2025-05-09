@@ -1,5 +1,5 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { login as fetchLogin } from '../../api';
 import { api } from '@/services/apiClient';
 
 interface User {
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const data = await api.login(username, password);
+      const data = await fetchLogin(username, password);
       
       if (data.access_token) {
         localStorage.setItem('token', data.access_token);
