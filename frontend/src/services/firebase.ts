@@ -175,13 +175,23 @@ export const submitDoctorReview = async (
   diagnosis: string
 ): Promise<void> => {
   try {
-    console.log(`Submitting review for report ${reportId}`);
+    console.log(`Submitting review for patient ${patientId}, report ${reportId}`);
+    
+    // Verify we have all required data
+    if (!patientId || !reportId || !diagnosis) {
+      throw new Error('Missing required data for review submission');
+    }
+
+    // Get reference to the report document
     const reportRef = doc(db, 'patients', patientId, 'reports', reportId);
+    
+    // Update the document with the diagnosis
     await updateDoc(reportRef, {
       doctor_diagnosis: diagnosis,
       reviewed: true,
       reviewedAt: Timestamp.now()
     });
+    
     console.log('Review submitted successfully');
   } catch (error) {
     console.error('Error submitting doctor review:', error);

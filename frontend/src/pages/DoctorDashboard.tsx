@@ -59,7 +59,11 @@ const DoctorDashboard = () => {
 
   const handleSaveReview = async (caseData: CaseData, doctorNotes: string) => {
     try {
-      await submitDoctorReview(caseData.report.id, doctorNotes);
+      await submitDoctorReview(
+        caseData.patient.uid,  // patient ID
+        caseData.report.id,    // report ID
+        doctorNotes           // diagnosis
+      );
       
       // Update local state
       setCases(prevCases => prevCases.filter(c => c.report.id !== caseData.report.id));
