@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, User, Phone, Mail, Calendar, Download } from 'lucide-react';
 import { Patient, Report } from '@/services/firebase';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -22,37 +22,97 @@ interface PatientDetailViewProps {
 const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack, onSaveReview }) => {
   const [diagnosis, setDiagnosis] = useState('');
   const { patient, report, fileUrl } = caseData;
+  const [activeTab, setActiveTab] = useState('report'); // 'report' or 'review'
 
   const handleSave = () => {
     onSaveReview(caseData, diagnosis);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack} className="flex items-center gap-1">
-          <ArrowLeft className="h-4 w-4" /> Back to cases
-        </Button>
+    <div className="space-y-8 pb-8">
+      {/* Header Section */}
+      <div className="flex items-center justify-between border-b pb-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={onBack} className="flex items-center gap-1">
+            <ArrowLeft className="h-4 w-4" /> Back to cases
+          </Button>
+          <h2 className="text-2xl font-bold text-gray-900">Patient Case Review</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={onBack}>Cancel</Button>
+          <Button onClick={handleSave} className="bg-medical-blue hover:bg-medical-blue/90">
+            Save & Send to Patient
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-6">
-          <Card className="p-6 space-y-4">
-            <div>
-              <h2 className="text-2xl font-bold">{patient.full_name}</h2>
-              <p className="text-gray-500">{patient.age} years, {patient.gender}</p>
-              <p className="text-sm text-gray-400 mt-2">Submitted: {report.timestamp.toLocaleString()}</p>
+      <div className="grid grid-cols-12 gap-6">
+        {/* Left Column - Patient Info */}
+        <div className="col-span-12 lg:col-span-4 space-y-6">
+          {/* Patient Card */}
+          <Card className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">{patient.full_name}</h3>
+                <p className="text-gray-500">{patient.age} years, {patient.gender}</p>
+              </div>
+              <div className="bg-medical-blue/10 text-medical-blue px-3 py-1 rounded-full text-sm">
+                Case #{report.id.slice(0, 6)}
+              </div>
             </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold">Contact Information</h3>
-              <p className="text-sm">Email: {patient.email}</p>
-              <p className="text-sm">Phone: {patient.phone_number}</p>
+            
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center gap-3 text-gray-600">
+                <Mail className="h-4 w-4" />
+                <span>{patient.email}</span>
+              </div>
+              <div className="flex items-center gap-3 text-gray-600">
+                <Phone className="h-4 w-4" />
+                <span>{patient.phone_number}</span>
+              </div>
+              <div className="flex items-center gap-3 text-gray-600">
+                <Calendar className="h-4 w-4" />
+                <span>Submitted: {report.timestamp.toLocaleString()}</span>
+              </div>
             </div>
           </Card>
 
+          {/* Doctor's Review Input */}
           <Card className="p-6">
-            <h3 className="text-xl font-semibold mb-4">Medical Report</h3>
-            <div className="aspect-[16/9] w-full bg-gray-100 rounded-lg overflow-hidden">
+            <h3 className="text-lg font-semibold mb-4">Doctor's Review</h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="diagnosis">Diagnosis & Prescription:</Label>
+                <Textarea 
+                  id="diagnosis"
+                  placeholder="Enter your diagnosis and prescription details..."
+                  value={diagnosis}
+                  onChange={(e) => setDiagnosis(e.target.value)}
+                  className="min-h-[200px] resize-none"
+                />
+                <p className="text-sm text-gray-500">
+                  Please include your diagnosis and any prescriptions or recommendations for the patient.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Column - Medical Report */}
+        <div className="col-span-12 lg:col-span-8">
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">Medical Report</h3>
+              {fileUrl && (
+                <Button variant="outline" size="sm" className="flex items-center gap-2"
+                  onClick={() => window.open(fileUrl, '_blank')}>
+                  <Download className="h-4 w-4" />
+                  Download PDF
+                </Button>
+              )}
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 300px)' }}>
               {fileUrl ? (
                 <iframe 
                   src={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
@@ -66,33 +126,6 @@ const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack,
               )}
             </div>
           </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="text-xl font-semibold mb-4">Doctor's Review</h3>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="diagnosis">Diagnosis & Prescription:</Label>
-                <Textarea 
-                  id="diagnosis"
-                  placeholder="Enter your diagnosis and prescription details..."
-                  value={diagnosis}
-                  onChange={(e) => setDiagnosis(e.target.value)}
-                  className="min-h-[200px]"
-                />
-                <p className="text-sm text-gray-500">
-                  Please include your diagnosis and any prescriptions or recommendations for the patient.
-                </p>
-              </div>
-            </div>
-          </Card>
-          
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onBack}>Cancel</Button>
-            <Button onClick={handleSave}>Save & Send to Patient</Button>
-          </div>
         </div>
       </div>
     </div>
