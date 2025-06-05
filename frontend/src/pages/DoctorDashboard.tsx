@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import PageLayout from '@/components/layout/PageLayout';
 import { Input } from '@/components/ui/input';
@@ -22,9 +21,6 @@ const DoctorDashboard = () => {
       name: 'John Doe',
       age: 45,
       gender: 'Male',
-      severity: 'high',
-      symptoms: ['Chest pain', 'Shortness of breath', 'Dizziness'],
-      aiRecommendation: 'Seek immediate medical attention. Symptoms suggest possible cardiac event.',
       timestamp: new Date(),
       status: 'pending'
     },
@@ -33,9 +29,6 @@ const DoctorDashboard = () => {
       name: 'Jane Smith',
       age: 35,
       gender: 'Female',
-      severity: 'medium',
-      symptoms: ['Headache', 'Nausea', 'Light sensitivity'],
-      aiRecommendation: 'Schedule an appointment within 24-48 hours. Symptoms suggest possible migraine.',
       timestamp: new Date(Date.now() - 3600000), // 1 hour ago
       status: 'pending'
     },
@@ -44,9 +37,6 @@ const DoctorDashboard = () => {
       name: 'Robert Johnson',
       age: 28,
       gender: 'Male',
-      severity: 'low',
-      symptoms: ['Sore throat', 'Mild fever', 'Cough'],
-      aiRecommendation: 'Rest and hydrate. Follow up if symptoms worsen or persist beyond 3-5 days.',
       timestamp: new Date(Date.now() - 7200000), // 2 hours ago
       status: 'pending'
     },
@@ -55,9 +45,6 @@ const DoctorDashboard = () => {
       name: 'Maria Garcia',
       age: 52,
       gender: 'Female',
-      severity: 'medium',
-      symptoms: ['Lower back pain', 'Numbness in leg', 'Difficulty walking'],
-      aiRecommendation: 'Schedule an appointment within 24-48 hours. Symptoms suggest possible sciatica.',
       timestamp: new Date(Date.now() - 10800000), // 3 hours ago
       status: 'reviewed'
     }
@@ -71,14 +58,13 @@ const DoctorDashboard = () => {
     setSelectedPatientId(null);
   };
 
-  const handleSaveReview = (id: string, doctorNotes: string, doctorRecommendation: string, severity: 'low' | 'medium' | 'high') => {
+  const handleSaveReview = (id: string, doctorNotes: string, doctorRecommendation: string) => {
     // In a real application, this would send data to a backend API
     const updatedCases = patientCases.map(patientCase => {
       if (patientCase.id === id) {
         return {
           ...patientCase,
-          status: 'reviewed' as const,
-          severity
+          status: 'reviewed' as const
         };
       }
       return patientCase;

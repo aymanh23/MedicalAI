@@ -27,3 +27,4 @@ dist-ssr
 # Firebase
 serviceAccountKey.json
 backend/serviceAccountKey.json
+firebaseconfig.ts
