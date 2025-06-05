@@ -38,7 +38,7 @@ const DoctorDashboard = () => {
       setCases(pendingReports);
     } catch (error) {
       console.error('Error loading pending reports:', error);
-      setError('Failed to load pending reports. Please try again in a few minutes.');
+      setError('Failed to load pending reports. The system is creating necessary database indexes. Please try again in a few minutes.');
       toast({
         title: "Error",
         description: "Failed to load pending reports. Please try again in a few minutes.",
@@ -59,11 +59,7 @@ const DoctorDashboard = () => {
 
   const handleSaveReview = async (caseData: CaseData, doctorNotes: string) => {
     try {
-      const pathParts = caseData.report.path.split('/');
-      const patientId = pathParts[1]; // patients/{patientId}/reports/{reportId}
-      const reportId = pathParts[3];
-
-      await submitDoctorReview(patientId, reportId, doctorNotes);
+      await submitDoctorReview(caseData.report.id, doctorNotes);
       
       // Update local state
       setCases(prevCases => prevCases.filter(c => c.report.id !== caseData.report.id));
@@ -83,60 +79,55 @@ const DoctorDashboard = () => {
     }
   };
 
-  // Filter cases based on search query
   const filteredCases = cases.filter(caseData => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = 
-      caseData.patient.full_name.toLowerCase().includes(searchLower) ||
-      caseData.patient.email.toLowerCase().includes(searchLower);
-    
-    if (filterStatus === 'all') return matchesSearch;
-    return matchesSearch && !caseData.report.reviewed;
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      return (
+        caseData.patient.full_name.toLowerCase().includes(searchLower) ||
+        caseData.patient.email.toLowerCase().includes(searchLower)
+      );
+    }
+    return true;
   });
 
   return (
     <PageLayout>
-      <section className="container py-8">
-        <div className="flex flex-col space-y-8">
+      <section className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-bold text-medical-slate mb-6">Doctor Dashboard</h1>
+          
           {selectedCase ? (
-            <PatientDetailView
+            <PatientDetailView 
               caseData={selectedCase}
               onBack={handleBackToList}
               onSaveReview={handleSaveReview}
             />
           ) : (
             <>
-              <div className="flex flex-col space-y-4 md:flex-row md:justify-between md:space-y-0">
-                <div>
-                  <h1 className="text-3xl font-bold text-medical-slate">Patient Cases</h1>
-                  <p className="text-gray-500">Review and manage patient cases</p>
-                </div>
-                <div className="flex flex-col space-y-2 md:flex-row md:space-x-2 md:space-y-0">
-                  <div className="relative">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0 mb-6">
+                <div className="flex items-center w-full md:w-auto">
+                  <div className="relative flex-grow md:w-64">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                     <Input
-                      placeholder="Search cases..."
+                      placeholder="Search patients..."
                       className="pl-8"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </div>
-                  <Select
-                    value={filterStatus}
-                    onValueChange={setFilterStatus}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by status" />
+                  <Select defaultValue="recent">
+                    <SelectTrigger className="w-[180px] ml-2">
+                      <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Cases</SelectItem>
-                      <SelectItem value="pending">Pending Review</SelectItem>
+                      <SelectItem value="recent">Sort by Recent</SelectItem>
+                      <SelectItem value="name">Sort by Name</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {loading ? (
                   <div className="col-span-3 py-12 text-center">
                     <div className="flex flex-col items-center space-y-4">
@@ -152,24 +143,25 @@ const DoctorDashboard = () => {
                         <Button 
                           variant="outline" 
                           onClick={loadPendingReports}
+                          className="mt-2"
                         >
                           Try Again
                         </Button>
                       </div>
                     </div>
                   </div>
-                ) : filteredCases.length === 0 ? (
-                  <div className="col-span-3 py-12 text-center text-gray-500">
-                    No pending reports found.
-                  </div>
-                ) : (
+                ) : filteredCases.length > 0 ? (
                   filteredCases.map(caseData => (
-                    <PatientCaseCard
+                    <PatientCaseCard 
                       key={caseData.report.id}
                       caseData={caseData}
                       onViewDetails={() => handleViewDetails(caseData)}
                     />
                   ))
+                ) : (
+                  <div className="col-span-3 py-12 text-center text-gray-500">
+                    No pending reports to review.
+                  </div>
                 )}
               </div>
             </>

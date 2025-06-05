@@ -1,33 +1,27 @@
 import axios from 'axios';
 import { auth } from '../integrations/firebase/firebaseConfig'; // Import Firebase auth instance
 
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+const API_URL = 'http://localhost:8000';
+
+export const apiClient = axios.create({
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Cache token with expiration
-let cachedToken: string | null = null;
-let tokenExpiration = 0;
-const TOKEN_CACHE_DURATION = 55 * 60 * 1000; // 55 minutes (Firebase tokens last 1 hour)
-
+// Request interceptor to add Firebase ID token
 apiClient.interceptors.request.use(
-  async (config) => {
+  async (config) => { // Made async to allow await for getIdToken
     const user = auth.currentUser;
     if (user) {
-      const now = Date.now();
-      
-      // Use cached token if available and not expired
-      if (cachedToken && now < tokenExpiration) {
-        config.headers.Authorization = `Bearer ${cachedToken}`;
-      } else {
-        // Get new token and cache it
-        const idToken = await user.getIdToken(false);
-        cachedToken = idToken;
-        tokenExpiration = now + TOKEN_CACHE_DURATION;
+      try {
+        const idToken = await user.getIdToken();
         config.headers.Authorization = `Bearer ${idToken}`;
+      } catch (error) {
+        console.error('Error getting ID token:', error);
+        // Handle error appropriately, e.g., by redirecting to login or showing a message
+        // For now, we'll let the request proceed without the token, which might fail on the backend.
       }
     }
     return config;
@@ -116,5 +110,3 @@ export const api = {
     return response.data;
   }
 };
-
-export default apiClient;

@@ -1,18 +1,18 @@
-import { db, storage } from '../integrations/firebase/firebaseConfig';
+// src/lib/firebase.ts (or wherever your firebase.ts lives)
+import { db, storage } from '../lib/firebase';
 import { auth } from '../integrations/firebase/firebaseConfig';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  setDoc,
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
   Timestamp,
   collectionGroup,
   getDoc
 } from 'firebase/firestore';
-import { ref, getDownloadURL } from 'firebase/storage';
+import { ref, listAll, getDownloadURL } from 'firebase/storage';
 
 export interface Patient {
   id: string;
@@ -33,39 +33,26 @@ export interface Report {
   reviewed: boolean;
   timestamp: Date;
   doctor_diagnosis?: string;
-  reviewedAt?: Date;
-  doctorId?: string;
 }
-
-// Cache doctor role check result
-let isDoctorCache: boolean | null = null;
-let lastDoctorCheckTime = 0;
-const DOCTOR_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export const checkDoctorRole = async (): Promise<boolean> => {
   try {
     const user = auth.currentUser;
-    if (!user) return false;
-
-    // Check cache first
-    const now = Date.now();
-    if (isDoctorCache !== null && (now - lastDoctorCheckTime) < DOCTOR_CACHE_DURATION) {
-      return isDoctorCache;
+    if (!user) {
+      console.error('No user is signed in');
+      return false;
     }
-    
+
     const userDocRef = doc(db, 'users', user.uid);
     const userDoc = await getDoc(userDocRef);
-    
-    if (!userDoc.exists()) return false;
+
+    if (!userDoc.exists()) {
+      console.error('User document not found');
+      return false;
+    }
 
     const userData = userDoc.data();
-    if (!userData.role) return false;
-    
-    // Update cache
-    isDoctorCache = userData.role === 'doctor';
-    lastDoctorCheckTime = now;
-    
-    return isDoctorCache;
+    return userData.role === 'doctor';
   } catch (error) {
     console.error('Error checking doctor role:', error);
     return false;
@@ -78,61 +65,63 @@ export const fetchPendingReports = async (): Promise<{
   fileUrl: string;
 }[]> => {
   try {
-    const user = auth.currentUser;
-    if (!user) {
-      throw new Error('You must be signed in to fetch reports');
-    }
-
+    console.log('Checking doctor role...');
     const isDoctor = await checkDoctorRole();
     if (!isDoctor) {
-      throw new Error('You must be a doctor to fetch reports');
+      throw new Error('User is not authorized as a doctor');
     }
 
-    const patientCache = new Map<string, any>();
-    
+    console.log('Fetching pending reports...');
+
+    // Query all "reports" subcollections where "reviewed" === false
     const reportsQuery = query(
       collectionGroup(db, 'reports'),
       where('reviewed', '==', false)
     );
-    
+
+    console.log('Executing reports query...');
     const reportsSnapshot = await getDocs(reportsQuery);
+    console.log(`Found ${reportsSnapshot.docs.length} pending reports`);
 
-    // Batch get all patient documents
-    const patientIds = new Set(
-      reportsSnapshot.docs.map(doc => doc.ref.path.split('/')[1])
-    );
-
-    const patientPromises = Array.from(patientIds).map(async patientId => {
-      const patientDoc = await getDoc(doc(db, 'patients', patientId));
-      if (patientDoc.exists()) {
-        patientCache.set(patientId, patientDoc.data());
-      }
-      return patientDoc;
-    });
-
-    await Promise.all(patientPromises);
-    
-    // Process all reports in parallel
     const results = await Promise.all(
       reportsSnapshot.docs.map(async (reportDoc) => {
+        console.log(`Processing report ${reportDoc.id}`);
         const reportData = reportDoc.data();
+        console.log('Report data:', reportData);
+
+        // Extract patientId from the Firestore path: "patients/{patientId}/reports/{reportId}"
         const patientId = reportDoc.ref.path.split('/')[1];
-        const patientData = patientCache.get(patientId);
+        console.log(`Fetching patient data for ID: ${patientId}`);
 
-        if (!patientData) return null;
+        // Look up the patient document by matching the "uid" field to patientId
+        const patientQuerySnapshot = await getDocs(
+          query(
+            collection(db, 'patients'),
+            where('uid', '==', patientId)
+          )
+        );
 
+        if (patientQuerySnapshot.empty) {
+          console.error(`Patient not found for report ${reportDoc.id}`);
+          throw new Error(`Patient not found for report ${reportDoc.id}`);
+        }
+
+        const patientDoc = patientQuerySnapshot.docs[0];
+        const patientData = patientDoc.data();
+        console.log('Patient data:', patientData);
+
+        // Build the Report object
         const report: Report = {
           id: reportDoc.id,
-          path: reportDoc.ref.path,
+          path: `patients/${patientId}/reports/${reportDoc.id}`,
           reviewed: reportData.reviewed || false,
           timestamp: reportData.timestamp?.toDate() || new Date(),
-          doctor_diagnosis: reportData.doctor_diagnosis,
-          reviewedAt: reportData.reviewedAt?.toDate(),
-          doctorId: reportData.doctorId
+          doctor_diagnosis: reportData.doctor_diagnosis
         };
-        
+
+        // Build the Patient object
         const patient: Patient = {
-          id: patientId,
+          id: patientDoc.id,
           first_name: patientData.first_name,
           last_name: patientData.last_name,
           full_name: patientData.full_name,
@@ -144,9 +133,25 @@ export const fetchPendingReports = async (): Promise<{
           uid: patientId
         };
 
-        // Get the file URL from storage
-        const storageRef = ref(storage, `patients/${patientId}/reports/${reportDoc.id}`);
-        const fileUrl = await getDownloadURL(storageRef).catch(() => '#');
+        // === NEW: List all files under "patients/{patientId}/reports/{reportId}" ===
+        const storageFolder = `patients/${patientId}/reports/${reportDoc.id}`;
+        console.log(`Listing files in storage folder: ${storageFolder}`);
+        const folderRef = ref(storage, storageFolder);
+        const listResult = await listAll(folderRef);
+
+        if (listResult.items.length === 0) {
+          console.warn(`No files found under ${storageFolder}`);
+          return {
+            patient,
+            report,
+            fileUrl: '' // or handle this case as you prefer
+          };
+        }
+
+        // Pick the first file. If you expect multiple files, iterate or filter accordingly.
+        const firstFileRef = listResult.items[0];
+        const fileUrl = await getDownloadURL(firstFileRef);
+        console.log('File URL obtained:', fileUrl);
 
         return {
           patient,
@@ -156,7 +161,8 @@ export const fetchPendingReports = async (): Promise<{
       })
     );
 
-    return results.filter(result => result !== null);
+    console.log('Final results:', results);
+    return results;
   } catch (error) {
     console.error('Error fetching pending reports:', error);
     throw error;
@@ -169,26 +175,16 @@ export const submitDoctorReview = async (
   diagnosis: string
 ): Promise<void> => {
   try {
-    const user = auth.currentUser;
-    if (!user) {
-      throw new Error('You must be signed in to submit a review');
-    }
-
-    const isDoctor = await checkDoctorRole();
-    if (!isDoctor) {
-      throw new Error('You must be a doctor to submit a review');
-    }
-
+    console.log(`Submitting review for report ${reportId}`);
     const reportRef = doc(db, 'patients', patientId, 'reports', reportId);
-    
     await updateDoc(reportRef, {
       doctor_diagnosis: diagnosis,
       reviewed: true,
-      reviewedAt: Timestamp.now(),
-      doctorId: user.uid
+      reviewedAt: Timestamp.now()
     });
+    console.log('Review submitted successfully');
   } catch (error) {
     console.error('Error submitting doctor review:', error);
     throw error;
   }
-}; 
+};

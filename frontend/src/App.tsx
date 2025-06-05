@@ -12,20 +12,13 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import DoctorAccount from './pages/DoctorAccount';
 
 // Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1
-    }
-  }
-});
+const queryClient = new QueryClient();
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Router>
           <Routes>
             <Route path="/" element={
               <ProtectedRoute>

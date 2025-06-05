@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isDoctor() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if request.auth.uid == userId;
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId;
+    }
+
+    // Patients collection and subcollections
+    match /patients/{patientId} {
+      allow read: if isAuthenticated() && (request.auth.uid == patientId || isDoctor());
+      allow create: if isDoctor();
+      allow update: if isDoctor();
+      allow delete: if false; // Prevent deletion for safety
+
+      // Reports subcollection
+      match /reports/{reportId} {
+        allow read: if isAuthenticated() && (request.auth.uid == patientId || isDoctor());
+        allow create: if isDoctor();
+        allow update: if isDoctor();
+        allow delete: if false; // Prevent deletion for safety
+      }
+    }
+
+    // Collection group query rules
+    match /{path=**}/reports/{report} {
+      allow read: if isAuthenticated() && isDoctor();
+    }
+  }
+} 

@@ -1,36 +1,24 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
-import { Patient, Report } from '@/services/firebase';
+import { CaseData } from '@/services/firebase';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PatientDetailViewProps {
-  caseData: {
-    patient: Patient;
-    report: Report;
-    fileUrl: string;
-  };
+  caseData: CaseData;
   onBack: () => void;
-  onSaveReview: (caseData: any, diagnosis: string) => void;
+  onSaveReview: (caseData: CaseData, diagnosis: string) => void;
 }
 
 const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack, onSaveReview }) => {
   const [diagnosis, setDiagnosis] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
   const { patient, report, fileUrl } = caseData;
 
-  const handleSave = async () => {
-    if (!diagnosis.trim()) {
-      return; // Don't submit empty diagnosis
-    }
-    
-    setIsSaving(true);
-    try {
-      await onSaveReview(caseData, diagnosis);
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSave = () => {
+    onSaveReview(caseData, diagnosis);
   };
 
   return (
@@ -59,19 +47,11 @@ const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack,
           <Card className="p-6">
             <h3 className="text-xl font-semibold mb-4">Medical Report</h3>
             <div className="aspect-[16/9] w-full bg-gray-100 rounded-lg overflow-hidden">
-              {fileUrl.endsWith('.pdf') ? (
-                <iframe 
-                  src={fileUrl} 
-                  className="w-full h-full"
-                  title="Medical Report"
-                />
-              ) : (
-                <img 
-                  src={fileUrl} 
-                  alt="Medical Report" 
-                  className="w-full h-full object-contain"
-                />
-              )}
+              <iframe 
+                src={fileUrl} 
+                className="w-full h-full"
+                title="Medical Report"
+              />
             </div>
           </Card>
         </div>
@@ -79,29 +59,28 @@ const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack,
         <div className="space-y-6">
           <Card className="p-6">
             <h3 className="text-xl font-semibold mb-4">Doctor's Review</h3>
+            
             <div className="space-y-4">
-              <div>
-                <label htmlFor="diagnosis" className="block text-sm font-medium mb-2">
-                  Diagnosis & Recommendations
-                </label>
-                <Textarea
+              <div className="space-y-2">
+                <Label htmlFor="diagnosis">Diagnosis & Prescription:</Label>
+                <Textarea 
                   id="diagnosis"
-                  placeholder="Enter your diagnosis, recommendations, and any prescriptions..."
+                  placeholder="Enter your diagnosis and prescription details..."
                   value={diagnosis}
                   onChange={(e) => setDiagnosis(e.target.value)}
                   className="min-h-[200px]"
-                  disabled={isSaving}
                 />
+                <p className="text-sm text-gray-500">
+                  Please include your diagnosis and any prescriptions or recommendations for the patient.
+                </p>
               </div>
-              <Button 
-                className="w-full" 
-                onClick={handleSave}
-                disabled={!diagnosis.trim() || isSaving}
-              >
-                {isSaving ? "Saving Review..." : "Save Review"}
-              </Button>
             </div>
           </Card>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onBack}>Cancel</Button>
+            <Button onClick={handleSave}>Save & Send to Patient</Button>
+          </div>
         </div>
       </div>
     </div>

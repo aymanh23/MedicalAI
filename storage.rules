@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isDoctor() {
+      return isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+    }
+
+    // Patient reports access
+    match /patients/{patientId}/reports/{reportPath=**} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == patientId || // Patient can read their own reports
+        isDoctor() // Doctors can read all patient reports
+      );
+      
+      allow write: if isDoctor() && 
+        // Validate content type
+        (request.resource.contentType == 'text/plain' ||
+         request.resource.contentType.matches('application/pdf') ||
+         request.resource.contentType.matches('image/.*')) &&
+        // Limit file size to 10MB
+        request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // Default deny all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+} 
