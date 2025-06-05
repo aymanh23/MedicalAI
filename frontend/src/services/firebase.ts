@@ -10,7 +10,8 @@ import {
   updateDoc,
   Timestamp,
   collectionGroup,
-  getDoc
+  getDoc,
+  onSnapshot
 } from 'firebase/firestore';
 import { ref, listAll, getDownloadURL } from 'firebase/storage';
 
@@ -306,4 +307,110 @@ export const submitDoctorReview = async (
     console.error('Error submitting doctor review:', error);
     throw error;
   }
+};
+
+export const subscribeToReports = (
+  onPendingUpdate: (reports: { patient: Patient; report: Report; fileUrl: string; }[]) => void,
+  onReviewedUpdate: (reports: { patient: Patient; report: Report; fileUrl: string; }[]) => void
+) => {
+  // Query for pending reports
+  const pendingQuery = query(
+    collectionGroup(db, 'reports'),
+    where('reviewed', '==', false)
+  );
+
+  // Query for reviewed reports
+  const reviewedQuery = query(
+    collectionGroup(db, 'reports'),
+    where('reviewed', '==', true)
+  );
+
+  // Helper function to process report documents
+  const processReportDocs = async (reportDocs: any[]) => {
+    const results = await Promise.all(
+      reportDocs.map(async (reportDoc) => {
+        const reportData = reportDoc.data();
+        const patientId = reportDoc.ref.path.split('/')[1];
+
+        // Get patient data
+        const patientQuerySnapshot = await getDocs(
+          query(
+            collection(db, 'patients'),
+            where('uid', '==', patientId)
+          )
+        );
+
+        if (patientQuerySnapshot.empty) {
+          console.error(`Patient not found for report ${reportDoc.id}`);
+          return null;
+        }
+
+        const patientDoc = patientQuerySnapshot.docs[0];
+        const patientData = patientDoc.data();
+
+        // Build the Report object
+        const report: Report = {
+          id: reportDoc.id,
+          path: `patients/${patientId}/reports/${reportDoc.id}`,
+          reviewed: reportData.reviewed || false,
+          timestamp: reportData.timestamp?.toDate() || new Date(),
+          doctor_diagnosis: reportData.doctor_diagnosis
+        };
+
+        // Build the Patient object
+        const patient: Patient = {
+          id: patientDoc.id,
+          first_name: patientData.first_name,
+          last_name: patientData.last_name,
+          full_name: patientData.full_name,
+          age: patientData.age,
+          gender: patientData.gender,
+          email: patientData.email,
+          phone_number: patientData.phone_number,
+          createdAt: patientData.createdAt?.toDate() || new Date(),
+          uid: patientId
+        };
+
+        // Get file URL
+        const storageFolder = `patients/${patientId}/reports`;
+        const folderRef = ref(storage, storageFolder);
+        const listResult = await listAll(folderRef);
+
+        let fileUrl = '';
+        if (listResult.items.length > 0) {
+          const firstFileRef = listResult.items[0];
+          fileUrl = await getDownloadURL(firstFileRef);
+        }
+
+        return {
+          patient,
+          report,
+          fileUrl
+        };
+      })
+    );
+
+    return results.filter(result => result !== null);
+  };
+
+  // Set up listeners
+  const pendingUnsubscribe = onSnapshot(pendingQuery, async (snapshot) => {
+    const reports = await processReportDocs(snapshot.docs);
+    onPendingUpdate(reports);
+  }, (error) => {
+    console.error("Error listening to pending reports:", error);
+  });
+
+  const reviewedUnsubscribe = onSnapshot(reviewedQuery, async (snapshot) => {
+    const reports = await processReportDocs(snapshot.docs);
+    onReviewedUpdate(reports);
+  }, (error) => {
+    console.error("Error listening to reviewed reports:", error);
+  });
+
+  // Return unsubscribe functions
+  return () => {
+    pendingUnsubscribe();
+    reviewedUnsubscribe();
+  };
 };

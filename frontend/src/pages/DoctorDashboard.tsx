@@ -7,7 +7,7 @@ import { Search } from 'lucide-react';
 import PatientCaseCard from '@/components/doctor/PatientCaseCard';
 import PatientDetailView from '@/components/doctor/PatientDetailView';
 import { useToast } from '@/components/ui/use-toast';
-import { fetchPendingReports, fetchReviewedReports, submitDoctorReview } from '@/services/firebase';
+import { subscribeToReports, submitDoctorReview } from '@/services/firebase';
 import { Patient, Report } from '@/services/firebase';
 import { Button } from '@/components/ui/button';
 
@@ -29,34 +29,28 @@ const DoctorDashboard = () => {
   const [activeTab, setActiveTab] = useState('pending');
 
   useEffect(() => {
-    loadAllReports();
-  }, []);
+    setLoading(true);
+    setError(null);
 
-  const loadAllReports = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Load both pending and reviewed reports
-      const [pending, reviewed] = await Promise.all([
-        fetchPendingReports(),
-        fetchReviewedReports()
-      ]);
-      
-      setPendingCases(pending);
-      setReviewedCases(reviewed);
-    } catch (error) {
-      console.error('Error loading reports:', error);
-      setError('Failed to load reports. Please try again in a few minutes.');
-      toast({
-        title: "Error",
-        description: "Failed to load reports. Please try again in a few minutes.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToReports(
+      // Pending reports callback
+      (reports) => {
+        setPendingCases(reports);
+        setLoading(false);
+      },
+      // Reviewed reports callback
+      (reports) => {
+        setReviewedCases(reports);
+        setLoading(false);
+      }
+    );
+
+    // Cleanup subscription on component unmount
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const handleViewDetails = (caseData: CaseData) => {
     setSelectedCase(caseData);
@@ -69,14 +63,12 @@ const DoctorDashboard = () => {
   const handleSaveReview = async (caseData: CaseData, doctorNotes: string) => {
     try {
       await submitDoctorReview(
-        caseData.patient.uid,  // patient ID
-        caseData.report.id,    // report ID
-        doctorNotes           // diagnosis
+        caseData.patient.uid,
+        caseData.report.id,
+        doctorNotes
       );
       
-      // Move the case from pending to reviewed
-      setPendingCases(prev => prev.filter(c => c.report.id !== caseData.report.id));
-      setReviewedCases(prev => [...prev, { ...caseData, report: { ...caseData.report, reviewed: true, doctor_diagnosis: doctorNotes }}]);
+      // The real-time listener will automatically update the UI
       setSelectedCase(null);
       
       toast({
@@ -180,7 +172,10 @@ const DoctorDashboard = () => {
                               <p className="text-red-800">{error}</p>
                               <Button 
                                 variant="outline" 
-                                onClick={loadAllReports}
+                                onClick={() => {
+                                  setLoading(true);
+                                  setError(null);
+                                }}
                                 className="mt-2"
                               >
                                 Try Again
