@@ -133,8 +133,8 @@ export const fetchPendingReports = async (): Promise<{
           uid: patientId
         };
 
-        // === NEW: List all files under "patients/{patientId}/reports/{reportId}" ===
-        const storageFolder = `patients/${patientId}/reports/${reportDoc.id}`;
+        // === NEW: List all files under "patients/{patientId}/reports/" ===
+        const storageFolder = `patients/${patientId}/reports`;
         console.log(`Listing files in storage folder: ${storageFolder}`);
         const folderRef = ref(storage, storageFolder);
         const listResult = await listAll(folderRef);

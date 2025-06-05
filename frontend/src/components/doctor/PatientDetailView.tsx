@@ -4,8 +4,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
-import { CaseData } from '@/services/firebase';
+import { Patient, Report } from '@/services/firebase';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+interface CaseData {
+  patient: Patient;
+  report: Report;
+  fileUrl: string;
+}
 
 interface PatientDetailViewProps {
   caseData: CaseData;
@@ -47,11 +53,17 @@ const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack,
           <Card className="p-6">
             <h3 className="text-xl font-semibold mb-4">Medical Report</h3>
             <div className="aspect-[16/9] w-full bg-gray-100 rounded-lg overflow-hidden">
-              <iframe 
-                src={fileUrl} 
-                className="w-full h-full"
-                title="Medical Report"
-              />
+              {fileUrl ? (
+                <iframe 
+                  src={`${fileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                  className="w-full h-full"
+                  title="Medical Report"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  No medical report available
+                </div>
+              )}
             </div>
           </Card>
         </div>
