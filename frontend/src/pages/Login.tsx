@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,41 +10,51 @@ import { useAuth } from "@/contexts/AuthContext";
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [username, setUsername] = React.useState("");
+  const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const { login } = useAuth();
+  const [localLoading, setLocalLoading] = React.useState(false);
+  const { login, isAuthenticated, user, isLoading: authIsLoading } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
+    setLocalLoading(true);
     try {
-      const success = await login(username, password);
-      
-      if (success) {
+      const success = await login(email, password);
+      if (!success) {
         toast({
-          title: "Login successful",
-          description: "Welcome back, Doctor!",
-        });
-        navigate("/doctor-dashboard");
-      } else {
-        toast({
-          title: "Error",
-          description: "Invalid username or password",
+          title: "Login Failed",
+          description: "Invalid email or password. Please try again.",
           variant: "destructive",
         });
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Login failed",
+        description: error.message || "An unexpected error occurred during login.",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      toast({ 
+        title: "Login successful!", 
+        description: `Welcome back, ${user.username || user.email}! Redirecting...`,
+      });
+      if (user.role === 'doctor') {
+        navigate("/doctor-dashboard");
+      } else if (user.role === 'patient') {
+        navigate("/patient-dashboard");
+      } else {
+        navigate("/");
+      }
+    }
+  }, [isAuthenticated, user, navigate, toast]);
+
+  const isProcessing = localLoading || authIsLoading;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-medical-light p-4">
@@ -57,14 +66,15 @@ const Login = () => {
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="dr_smith"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="doctor@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isProcessing}
               />
             </div>
             <div className="space-y-2">
@@ -75,12 +85,13 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isProcessing}
               />
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" type="submit" disabled={loading}>
-              {loading ? "Logging in..." : "Login"}
+            <Button className="w-full" type="submit" disabled={isProcessing}>
+              {isProcessing ? "Logging in..." : "Login"}
             </Button>
           </CardFooter>
         </form>

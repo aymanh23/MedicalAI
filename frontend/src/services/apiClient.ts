@@ -1,5 +1,5 @@
-
 import axios from 'axios';
+import { auth } from '../integrations/firebase/firebaseConfig'; // Import Firebase auth instance
 
 const API_URL = 'http://localhost:8000';
 
@@ -10,12 +10,19 @@ export const apiClient = axios.create({
   },
 });
 
-// Request interceptor to add authorization token
+// Request interceptor to add Firebase ID token
 apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config) => { // Made async to allow await for getIdToken
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const idToken = await user.getIdToken();
+        config.headers.Authorization = `Bearer ${idToken}`;
+      } catch (error) {
+        console.error('Error getting ID token:', error);
+        // Handle error appropriately, e.g., by redirecting to login or showing a message
+        // For now, we'll let the request proceed without the token, which might fail on the backend.
+      }
     }
     return config;
   },
@@ -37,6 +44,15 @@ export const api = {
   
   register: async (userData: any) => {
     const response = await apiClient.post('/register', userData);
+    return response.data;
+  },
+  
+  // New function to create user profile in backend after Firebase user creation
+  createProfile: async (profileData: { username?: string; email: string; role: string; [key: string]: any }) => {
+    // The /users/create_profile endpoint expects the Firebase UID to be the document ID,
+    // which is handled by the backend using the decoded ID token.
+    // The frontend just needs to send the profile data.
+    const response = await apiClient.post('/users/create_profile', profileData);
     return response.data;
   },
   

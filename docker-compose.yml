@@ -1,31 +1,8 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:13
-    container_name: postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: medical_app
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  # ─────────── pgAdmin 4 ────────────
-  pgadmin:
-
-    image: elestio/pgadmin
-    container_name: pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@test.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-    ports:
-      - "5055:80"
-
+  # Removed postgres service
+  # Removed pgadmin service
 
   backend:
     container_name: backend-service
@@ -35,12 +12,11 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - SECRET_KEY=your-secret-key-for-development
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/medical_app
-      # Add your Gemini API key here or use an .env file
-      # - GEMINI_API_KEY=your-gemini-api-key
-    depends_on:
-      - postgres
+      # - SECRET_KEY=your-secret-key-for-development # Likely no longer needed
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json # Ensure serviceAccountKey.json is in backend/
+      # - GEMINI_API_KEY=your_actual_gemini_api_key_here # Set your Gemini API Key here or use an .env file
+    # depends_on: # Removed postgres dependency
+    #  - postgres
 
   frontend:
     container_name: frontend
@@ -52,7 +28,3 @@ services:
     environment:
       - NODE_ENV=production
     restart: unless-stopped
-
-
-volumes:
-  postgres_data:

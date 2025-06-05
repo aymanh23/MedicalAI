@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 
 // Pages
 import Login from './pages/Login';
+import RegisterPage from './pages/RegisterPage';
 import DoctorDashboard from './pages/DoctorDashboard';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -25,6 +26,7 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route 
               path="/doctor-dashboard" 
               element={
