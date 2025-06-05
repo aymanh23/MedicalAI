@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '../services/apiClient';
@@ -57,8 +56,17 @@ export function usePatientCases() {
   };
 }
 
+const API_URL = 'http://localhost:8000';
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+}
+
 export function useAuth() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -69,23 +77,62 @@ export function useAuth() {
     if (token) {
       setIsAuthenticated(true);
       // In a real app, you would validate the token here
+      fetch(`${API_URL}/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        setUser(data);
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+        setIsAuthenticated(false);
+      });
     }
     setIsLoading(false);
   }, []);
 
-  const handleLogin = async (username: string, password: string) => {
+  const login = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await api.login(username, password);
-      localStorage.setItem('token', response.access_token);
+      const body = `grant_type=&username=${encodeURIComponent(
+        username.trim()
+      )}&password=${encodeURIComponent(password)}&scope=&client_id=&client_secret=`;
+
+      const response = await fetch(`${API_URL}/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'accept': 'application/json',
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        throw new Error('Invalid username or password');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.access_token);
       setIsAuthenticated(true);
+
+      // Fetch user data
+      const userResponse = await fetch(`${API_URL}/me`, {
+        headers: {
+          'Authorization': `Bearer ${data.access_token}`
+        }
+      });
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        setUser(userData);
+      }
+
       return true;
     } catch (error) {
-      toast({
-        title: "Login Failed",
-        description: "Invalid username or password",
-        variant: "destructive",
-      });
+      console.error('Login error:', error);
       return false;
     } finally {
       setIsLoading(false);
@@ -95,13 +142,14 @@ export function useAuth() {
   const logout = () => {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
+    setUser(null);
   };
 
   return {
     user,
     isAuthenticated,
     isLoading,
-    login: handleLogin,
+    login,
     logout
   };
 }

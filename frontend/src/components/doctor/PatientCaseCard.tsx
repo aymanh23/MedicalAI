@@ -2,59 +2,40 @@ import React from 'react';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, CheckCircle } from 'lucide-react';
-
-export interface PatientCase {
-  id: string;
-  name: string;
-  age: number;
-  gender: string;
-  timestamp: Date;
-  status: 'pending' | 'reviewed';
-}
+import { Clock } from 'lucide-react';
+import { CaseData } from '@/services/firebase';
 
 interface PatientCaseCardProps {
-  patientCase: PatientCase;
-  onViewDetails: (id: string) => void;
+  caseData: CaseData;
+  onViewDetails: () => void;
 }
 
-const PatientCaseCard: React.FC<PatientCaseCardProps> = ({ patientCase, onViewDetails }) => {
-  const statusConfig = {
-    'pending': {
-      color: 'bg-yellow-100 text-yellow-800',
-      icon: <Clock className="h-4 w-4 mr-1" />
-    },
-    'reviewed': {
-      color: 'bg-green-100 text-green-800',
-      icon: <CheckCircle className="h-4 w-4 mr-1" />
-    }
-  };
-
-  const config = statusConfig[patientCase.status];
+const PatientCaseCard: React.FC<PatientCaseCardProps> = ({ caseData, onViewDetails }) => {
+  const { patient, report } = caseData;
 
   return (
     <Card className="shadow-sm hover:shadow transition-shadow">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="text-lg">{patientCase.name}</CardTitle>
+            <CardTitle className="text-lg">{patient.full_name}</CardTitle>
             <CardDescription>
-              {patientCase.age} years, {patientCase.gender}
+              {patient.age} years, {patient.gender}
             </CardDescription>
           </div>
-          <Badge className={`${config.color} border-0`}>
+          <Badge className="bg-yellow-100 text-yellow-800 border-0">
             <span className="flex items-center">
-              {config.icon}
-              {patientCase.status.charAt(0).toUpperCase() + patientCase.status.slice(1)}
+              <Clock className="h-4 w-4 mr-1" />
+              Pending Review
             </span>
           </Badge>
         </div>
       </CardHeader>
       <CardFooter className="flex justify-between pt-2">
         <span className="text-xs text-gray-500">
-          Submitted: {patientCase.timestamp.toLocaleString()}
+          Submitted: {report.timestamp.toLocaleString()}
         </span>
-        <Button size="sm" onClick={() => onViewDetails(patientCase.id)}>
+        <Button size="sm" onClick={onViewDetails}>
           Review
         </Button>
       </CardFooter>
