@@ -30,10 +30,14 @@ export interface Patient {
 
 export interface Report {
   id: string;
+  patient_id: string;
+  doctor_id?: string;
+  timestamp: Date;
+  status: 'pending' | 'in_review' | 'completed';
+  doctor_diagnosis?: string;
+  content?: string; // PDF content
   path: string;
   reviewed: boolean;
-  timestamp: Date;
-  doctor_diagnosis?: string;
 }
 
 export const checkDoctorRole = async (): Promise<boolean> => {
@@ -94,20 +98,15 @@ export const fetchPendingReports = async (): Promise<{
         const patientId = reportDoc.ref.path.split('/')[1];
         console.log(`Fetching patient data for ID: ${patientId}`);
 
-        // Look up the patient document by matching the "uid" field to patientId
-        const patientQuerySnapshot = await getDocs(
-          query(
-            collection(db, 'patients'),
-            where('uid', '==', patientId)
-          )
-        );
+        // Direct document lookup instead of querying by uid
+        const patientDocRef = doc(db, 'patients', patientId);
+        const patientDoc = await getDoc(patientDocRef);
 
-        if (patientQuerySnapshot.empty) {
+        if (!patientDoc.exists()) {
           console.error(`Patient not found for report ${reportDoc.id}`);
           throw new Error(`Patient not found for report ${reportDoc.id}`);
         }
 
-        const patientDoc = patientQuerySnapshot.docs[0];
         const patientData = patientDoc.data();
         console.log('Patient data:', patientData);
 
@@ -117,7 +116,10 @@ export const fetchPendingReports = async (): Promise<{
           path: `patients/${patientId}/reports/${reportDoc.id}`,
           reviewed: reportData.reviewed || false,
           timestamp: reportData.timestamp?.toDate() || new Date(),
-          doctor_diagnosis: reportData.doctor_diagnosis
+          doctor_diagnosis: reportData.doctor_diagnosis,
+          patient_id: patientId,
+          status: reportData.status || 'pending',
+          content: reportData.content
         };
 
         // Build the Patient object
@@ -204,20 +206,15 @@ export const fetchReviewedReports = async (): Promise<{
         const patientId = reportDoc.ref.path.split('/')[1];
         console.log(`Fetching patient data for ID: ${patientId}`);
 
-        // Look up the patient document by matching the "uid" field to patientId
-        const patientQuerySnapshot = await getDocs(
-          query(
-            collection(db, 'patients'),
-            where('uid', '==', patientId)
-          )
-        );
+        // Direct document lookup instead of querying by uid
+        const patientDocRef = doc(db, 'patients', patientId);
+        const patientDoc = await getDoc(patientDocRef);
 
-        if (patientQuerySnapshot.empty) {
+        if (!patientDoc.exists()) {
           console.error(`Patient not found for report ${reportDoc.id}`);
           throw new Error(`Patient not found for report ${reportDoc.id}`);
         }
 
-        const patientDoc = patientQuerySnapshot.docs[0];
         const patientData = patientDoc.data();
         console.log('Patient data:', patientData);
 
@@ -227,7 +224,10 @@ export const fetchReviewedReports = async (): Promise<{
           path: `patients/${patientId}/reports/${reportDoc.id}`,
           reviewed: reportData.reviewed || false,
           timestamp: reportData.timestamp?.toDate() || new Date(),
-          doctor_diagnosis: reportData.doctor_diagnosis
+          doctor_diagnosis: reportData.doctor_diagnosis,
+          patient_id: patientId,
+          status: reportData.status || 'pending',
+          content: reportData.content
         };
 
         // Build the Patient object
@@ -332,20 +332,15 @@ export const subscribeToReports = (
         const reportData = reportDoc.data();
         const patientId = reportDoc.ref.path.split('/')[1];
 
-        // Get patient data
-        const patientQuerySnapshot = await getDocs(
-          query(
-            collection(db, 'patients'),
-            where('uid', '==', patientId)
-          )
-        );
+        // Direct document lookup instead of querying by uid
+        const patientDocRef = doc(db, 'patients', patientId);
+        const patientDoc = await getDoc(patientDocRef);
 
-        if (patientQuerySnapshot.empty) {
+        if (!patientDoc.exists()) {
           console.error(`Patient not found for report ${reportDoc.id}`);
           return null;
         }
 
-        const patientDoc = patientQuerySnapshot.docs[0];
         const patientData = patientDoc.data();
 
         // Build the Report object
@@ -354,7 +349,10 @@ export const subscribeToReports = (
           path: `patients/${patientId}/reports/${reportDoc.id}`,
           reviewed: reportData.reviewed || false,
           timestamp: reportData.timestamp?.toDate() || new Date(),
-          doctor_diagnosis: reportData.doctor_diagnosis
+          doctor_diagnosis: reportData.doctor_diagnosis,
+          patient_id: patientId,
+          status: reportData.status || 'pending',
+          content: reportData.content
         };
 
         // Build the Patient object

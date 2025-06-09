@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -6,6 +6,11 @@ import { Card } from '@/components/ui/card';
 import { ArrowLeft, User, Phone, Mail, Calendar, Download } from 'lucide-react';
 import { Patient, Report } from '@/services/firebase';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AIChatPanel from './AIChatPanel';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface CaseData {
   patient: Patient;
@@ -22,7 +27,36 @@ interface PatientDetailViewProps {
 const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack, onSaveReview }) => {
   const [diagnosis, setDiagnosis] = useState('');
   const { patient, report, fileUrl } = caseData;
-  const [activeTab, setActiveTab] = useState('report'); // 'report' or 'review'
+  const [activeTab, setActiveTab] = useState('report');
+  const [reportContent, setReportContent] = useState<string>('');
+
+  // Extract text content from PDF when fileUrl changes
+  useEffect(() => {
+    const extractPdfContent = async () => {
+      if (!fileUrl) return;
+
+      try {
+        const response = await fetch(fileUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+        
+        // Extract text from all pages
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map((item: any) => item.str).join(' ');
+          fullText += pageText + '\n';
+        }
+
+        setReportContent(fullText);
+      } catch (error) {
+        console.error('Error extracting PDF content:', error);
+      }
+    };
+
+    extractPdfContent();
+  }, [fileUrl]);
 
   const handleSave = () => {
     onSaveReview(caseData, diagnosis);
@@ -128,6 +162,16 @@ const PatientDetailView: React.FC<PatientDetailViewProps> = ({ caseData, onBack,
           </Card>
         </div>
       </div>
+
+      {/* AI Chat Panel */}
+      <AIChatPanel 
+        patient={patient}
+        report={{
+          ...report,
+          content: reportContent // Add the extracted PDF content to the report
+        }}
+        fileUrl={fileUrl}
+      />
     </div>
   );
 };

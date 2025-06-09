@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { subscribeToReports, submitDoctorReview } from '@/services/firebase';
 import { Patient, Report } from '@/services/firebase';
 import { Button } from '@/components/ui/button';
+import AIChatPanel from '@/components/doctor/AIChatPanel';
 
 interface CaseData {
   patient: Patient;
@@ -229,6 +230,13 @@ const DoctorDashboard = () => {
           )}
         </div>
       </section>
+
+      {/* AI Chat Panel */}
+      <AIChatPanel 
+        patient={selectedCase?.patient}
+        report={selectedCase?.report}
+        fileUrl={selectedCase?.fileUrl}
+      />
     </PageLayout>
   );
 };
