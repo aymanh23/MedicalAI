@@ -13,7 +13,7 @@ import {
   getDoc,
   onSnapshot
 } from 'firebase/firestore';
-import { ref, listAll, getDownloadURL } from 'firebase/storage';
+import { ref, getDownloadURL } from 'firebase/storage';
 
 export interface Patient {
   id: string;
@@ -113,7 +113,7 @@ export const fetchPendingReports = async (): Promise<{
         // Build the Report object
         const report: Report = {
           id: reportDoc.id,
-          path: `patients/${patientId}/reports/${reportDoc.id}`,
+          path: reportData.path || `patients/${patientId}/reports/${reportDoc.id}`, // Use path from Firestore
           reviewed: reportData.reviewed || false,
           timestamp: reportData.timestamp?.toDate() || new Date(),
           doctor_diagnosis: reportData.doctor_diagnosis,
@@ -136,25 +136,21 @@ export const fetchPendingReports = async (): Promise<{
           uid: patientId
         };
 
-        // === NEW: List all files under "patients/{patientId}/reports/" ===
-        const storageFolder = `patients/${patientId}/reports`;
-        console.log(`Listing files in storage folder: ${storageFolder}`);
-        const folderRef = ref(storage, storageFolder);
-        const listResult = await listAll(folderRef);
-
-        if (listResult.items.length === 0) {
-          console.warn(`No files found under ${storageFolder}`);
-          return {
-            patient,
-            report,
-            fileUrl: '' // or handle this case as you prefer
-          };
+        // Get file URL using the path from Firestore document
+        let fileUrl = '';
+        if (reportData.path) {
+          console.log(`Getting file from storage path: ${reportData.path}`);
+          try {
+            const fileRef = ref(storage, reportData.path);
+            fileUrl = await getDownloadURL(fileRef);
+            console.log('File URL obtained:', fileUrl);
+          } catch (error) {
+            console.warn(`Failed to get file from path ${reportData.path}:`, error);
+            fileUrl = '';
+          }
+        } else {
+          console.warn(`No path found in report data for report ${reportDoc.id}`);
         }
-
-        // Pick the first file. If you expect multiple files, iterate or filter accordingly.
-        const firstFileRef = listResult.items[0];
-        const fileUrl = await getDownloadURL(firstFileRef);
-        console.log('File URL obtained:', fileUrl);
 
         return {
           patient,
@@ -221,7 +217,7 @@ export const fetchReviewedReports = async (): Promise<{
         // Build the Report object
         const report: Report = {
           id: reportDoc.id,
-          path: `patients/${patientId}/reports/${reportDoc.id}`,
+          path: reportData.path || `patients/${patientId}/reports/${reportDoc.id}`, // Use path from Firestore
           reviewed: reportData.reviewed || false,
           timestamp: reportData.timestamp?.toDate() || new Date(),
           doctor_diagnosis: reportData.doctor_diagnosis,
@@ -244,24 +240,21 @@ export const fetchReviewedReports = async (): Promise<{
           uid: patientId
         };
 
-        // Get the file URL from storage
-        const storageFolder = `patients/${patientId}/reports`;
-        console.log(`Listing files in storage folder: ${storageFolder}`);
-        const folderRef = ref(storage, storageFolder);
-        const listResult = await listAll(folderRef);
-
-        if (listResult.items.length === 0) {
-          console.warn(`No files found under ${storageFolder}`);
-          return {
-            patient,
-            report,
-            fileUrl: ''
-          };
+        // Get file URL using the path from Firestore document
+        let fileUrl = '';
+        if (reportData.path) {
+          console.log(`Getting file from storage path: ${reportData.path}`);
+          try {
+            const fileRef = ref(storage, reportData.path);
+            fileUrl = await getDownloadURL(fileRef);
+            console.log('File URL obtained:', fileUrl);
+          } catch (error) {
+            console.warn(`Failed to get file from path ${reportData.path}:`, error);
+            fileUrl = '';
+          }
+        } else {
+          console.warn(`No path found in report data for report ${reportDoc.id}`);
         }
-
-        const firstFileRef = listResult.items[0];
-        const fileUrl = await getDownloadURL(firstFileRef);
-        console.log('File URL obtained:', fileUrl);
 
         return {
           patient,
@@ -346,7 +339,7 @@ export const subscribeToReports = (
         // Build the Report object
         const report: Report = {
           id: reportDoc.id,
-          path: `patients/${patientId}/reports/${reportDoc.id}`,
+          path: reportData.path || `patients/${patientId}/reports/${reportDoc.id}`, // Use path from Firestore
           reviewed: reportData.reviewed || false,
           timestamp: reportData.timestamp?.toDate() || new Date(),
           doctor_diagnosis: reportData.doctor_diagnosis,
@@ -369,15 +362,16 @@ export const subscribeToReports = (
           uid: patientId
         };
 
-        // Get file URL
-        const storageFolder = `patients/${patientId}/reports`;
-        const folderRef = ref(storage, storageFolder);
-        const listResult = await listAll(folderRef);
-
+        // Get file URL using the path from Firestore document
         let fileUrl = '';
-        if (listResult.items.length > 0) {
-          const firstFileRef = listResult.items[0];
-          fileUrl = await getDownloadURL(firstFileRef);
+        if (reportData.path) {
+          try {
+            const fileRef = ref(storage, reportData.path);
+            fileUrl = await getDownloadURL(fileRef);
+          } catch (error) {
+            console.warn(`Failed to get file from path ${reportData.path}:`, error);
+            fileUrl = '';
+          }
         }
 
         return {
